@@ -126,7 +126,6 @@ mlx5_rxq_start(struct rte_eth_dev *dev)
 	}
 	for (i = 0; i != priv->rxqs_n; ++i) {
 		struct mlx5_rxq_ctrl *rxq_ctrl = mlx5_rxq_get(dev, i);
-		struct rte_mempool *mp;
 
 		if (!rxq_ctrl)
 			continue;
@@ -138,14 +137,17 @@ mlx5_rxq_start(struct rte_eth_dev *dev)
 			continue;
 		}
 		/* Pre-register Rx mempool. */
-		mp = mlx5_rxq_mprq_enabled(&rxq_ctrl->rxq) ?
-		     rxq_ctrl->rxq.mprq_mp : rxq_ctrl->rxq.mp;
-		DRV_LOG(DEBUG,
-			"port %u Rx queue %u registering"
-			" mp %s having %u chunks",
-			dev->data->port_id, rxq_ctrl->rxq.idx,
-			mp->name, mp->nb_mem_chunks);
-		mlx5_mr_update_mp(dev, &rxq_ctrl->rxq.mr_ctrl, mp);
+		if (mlx5_rxq_mprq_enabled(&rxq_ctrl->rxq)) {
+			mlx5_mr_update_mp(dev, &rxq_ctrl->rxq.mr_ctrl,
+					  rxq_ctrl->rxq.mprq_mp);
+		} else {
+			uint32_t s;
+
+			for (s = 0; s < rxq_ctrl->rxq.rxseg_n; s++)
+				mlx5_mr_update_mp
+					(dev, &rxq_ctrl->rxq.mr_ctrl,
+					rxq_ctrl->rxq.rxseg[s].mp);
+		}
 		ret = rxq_alloc_elts(rxq_ctrl);
 		if (ret)
 			goto error;
