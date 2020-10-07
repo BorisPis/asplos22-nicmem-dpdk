@@ -908,6 +908,15 @@ port_offload_cap_display(portid_t port_id)
 			printf("off\n");
 	}
 
+	if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_BUFFER_SPLIT) {
+		printf("RX offload buffer split:       ");
+		if (ports[port_id].dev_conf.rxmode.offloads &
+		    DEV_RX_OFFLOAD_BUFFER_SPLIT)
+			printf("on\n");
+		else
+			printf("off\n");
+	}
+
 	if (dev_info.tx_offload_capa & DEV_TX_OFFLOAD_VLAN_INSERT) {
 		printf("VLAN insert:                   ");
 		if (ports[port_id].dev_conf.txmode.offloads &
