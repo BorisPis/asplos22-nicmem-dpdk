@@ -371,6 +371,7 @@ mlx5_get_rx_queue_offloads(struct rte_eth_dev *dev)
 	struct mlx5_priv *priv = dev->data->dev_private;
 	struct mlx5_dev_config *config = &priv->config;
 	uint64_t offloads = (DEV_RX_OFFLOAD_SCATTER |
+			     DEV_RX_OFFLOAD_BUFFER_SPLIT |
 			     DEV_RX_OFFLOAD_TIMESTAMP |
 			     DEV_RX_OFFLOAD_JUMBO_FRAME |
 			     DEV_RX_OFFLOAD_RSS_HASH);
@@ -724,6 +725,88 @@ mlx5_rx_queue_pre_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t *desc)
  *   NUMA socket on which memory must be allocated.
  * @param[in] conf
  *   Thresholds parameters.
+ * @param rx_seg
+ *   Pointer the array of segment descriptions, each element
+ *   describes the memory pool, maximal data length, initial
+ *   data offset from the beginning of data buffer in mbuf
+ * @param n_seg
+ *   Number of elements in the segment descriptions array
+ *
+ * @return
+ *   0 on success, a negative errno value otherwise and rte_errno is set.
+ */
+int
+mlx5_rx_queue_setup_ex(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
+		       unsigned int socket, const struct rte_eth_rxconf *conf,
+		       const struct rte_eth_rxseg *rx_seg, uint16_t n_seg)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_rxq_data *rxq = (*priv->rxqs)[idx];
+	struct mlx5_rxq_ctrl *rxq_ctrl =
+		container_of(rxq, struct mlx5_rxq_ctrl, rxq);
+	int res;
+
+	if (!n_seg || !rx_seg) {
+		DRV_LOG(ERR, "port %u queue index %u invalid "
+			      "split description",
+			      dev->data->port_id, idx);
+		rte_errno = EINVAL;
+		return -rte_errno;
+	}
+	if (n_seg > 1) {
+		uint64_t offloads = conf->offloads |
+				    dev->data->dev_conf.rxmode.offloads;
+
+		if (!(offloads & DEV_RX_OFFLOAD_SCATTER)) {
+			DRV_LOG(ERR, "port %u queue index %u split "
+				     "configuration requires scattering",
+				     dev->data->port_id, idx);
+			rte_errno = ENOSPC;
+			return -rte_errno;
+		}
+		if (!(offloads & DEV_RX_OFFLOAD_BUFFER_SPLIT)) {
+			DRV_LOG(ERR, "port %u queue index %u split "
+				     "offload not configured",
+				     dev->data->port_id, idx);
+			rte_errno = ENOSPC;
+			return -rte_errno;
+		}
+		if (n_seg > MLX5_MAX_RXQ_NSEG) {
+			DRV_LOG(ERR, "port %u queue index %u too many "
+				     "segments %u to split",
+				     dev->data->port_id, idx, n_seg);
+			rte_errno = EOVERFLOW;
+			return -rte_errno;
+		}
+	}
+	res = mlx5_rx_queue_pre_setup(dev, idx, &desc);
+	if (res)
+		return res;
+	rxq_ctrl = mlx5_rxq_new(dev, idx, desc, socket, conf, rx_seg, n_seg);
+	if (!rxq_ctrl) {
+		DRV_LOG(ERR, "port %u unable to allocate queue index %u",
+			dev->data->port_id, idx);
+		rte_errno = ENOMEM;
+		return -rte_errno;
+	}
+	DRV_LOG(DEBUG, "port %u adding Rx queue %u to list",
+		dev->data->port_id, idx);
+	(*priv->rxqs)[idx] = &rxq_ctrl->rxq;
+	return 0;
+}
+
+/**
+ *
+ * @param dev
+ *   Pointer to Ethernet device structure.
+ * @param idx
+ *   RX queue index.
+ * @param desc
+ *   Number of descriptors to configure in queue.
+ * @param socket
+ *   NUMA socket on which memory must be allocated.
+ * @param[in] conf
+ *   Thresholds parameters.
  * @param mp
  *   Memory pool for buffer allocations.
  *
@@ -735,26 +818,14 @@ mlx5_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 		    unsigned int socket, const struct rte_eth_rxconf *conf,
 		    struct rte_mempool *mp)
 {
-	struct mlx5_priv *priv = dev->data->dev_private;
-	struct mlx5_rxq_data *rxq = (*priv->rxqs)[idx];
-	struct mlx5_rxq_ctrl *rxq_ctrl =
-		container_of(rxq, struct mlx5_rxq_ctrl, rxq);
-	int res;
-
-	res = mlx5_rx_queue_pre_setup(dev, idx, &desc);
-	if (res)
-		return res;
-	rxq_ctrl = mlx5_rxq_new(dev, idx, desc, socket, conf, mp);
-	if (!rxq_ctrl) {
-		DRV_LOG(ERR, "port %u unable to allocate queue index %u",
-			dev->data->port_id, idx);
-		rte_errno = ENOMEM;
-		return -rte_errno;
-	}
-	DRV_LOG(DEBUG, "port %u adding Rx queue %u to list",
-		dev->data->port_id, idx);
-	(*priv->rxqs)[idx] = &rxq_ctrl->rxq;
-	return 0;
+	struct rte_eth_rxseg rx_seg = {
+		.mp = mp,
+		/*
+		 * All other fields are zeroed, zero segment length
+		 * means the pool buffer size should be used by PMD.
+		 */
+	};
+	return mlx5_rx_queue_setup_ex(dev, idx, desc, socket, conf, &rx_seg, 1);
 }
 
 /**
@@ -2250,11 +2321,11 @@ mlx5_max_lro_msg_size_adjust(struct rte_eth_dev *dev, uint16_t idx,
 struct mlx5_rxq_ctrl *
 mlx5_rxq_new(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 	     unsigned int socket, const struct rte_eth_rxconf *conf,
-	     struct rte_mempool *mp)
+	     const struct rte_eth_rxseg *rx_seg, uint16_t n_seg)
 {
 	struct mlx5_priv *priv = dev->data->dev_private;
 	struct mlx5_rxq_ctrl *tmpl;
-	unsigned int mb_len = rte_pktmbuf_data_room_size(mp);
+	unsigned int mb_len = rte_pktmbuf_data_room_size(rx_seg[0].mp);
 	unsigned int mprq_stride_nums;
 	unsigned int mprq_stride_size;
 	unsigned int mprq_stride_cap;
@@ -2268,7 +2339,7 @@ mlx5_rxq_new(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 	uint64_t offloads = conf->offloads |
 			   dev->data->dev_conf.rxmode.offloads;
 	unsigned int lro_on_queue = !!(offloads & DEV_RX_OFFLOAD_TCP_LRO);
-	const int mprq_en = mlx5_check_mprq_support(dev) > 0;
+	const int mprq_en = mlx5_check_mprq_support(dev) > 0 && n_seg == 1;
 	unsigned int max_rx_pkt_len = lro_on_queue ?
 			dev->data->dev_conf.rxmode.max_lro_pkt_size :
 			dev->data->dev_conf.rxmode.max_rx_pkt_len;
@@ -2453,7 +2524,7 @@ mlx5_rxq_new(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 		(!!(dev->data->dev_conf.rxmode.mq_mode & ETH_MQ_RX_RSS));
 	tmpl->rxq.port_id = dev->data->port_id;
 	tmpl->priv = priv;
-	tmpl->rxq.mp = mp;
+	tmpl->rxq.mp = rx_seg[0].mp;
 	tmpl->rxq.elts_n = log2above(desc);
 	tmpl->rxq.rq_repl_thresh =
 		MLX5_VPMD_RXQ_RPLNSH_THRESH(1 << tmpl->rxq.elts_n);

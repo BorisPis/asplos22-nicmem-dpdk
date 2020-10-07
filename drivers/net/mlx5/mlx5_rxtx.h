@@ -150,6 +150,9 @@ struct mlx5_rxq_data {
 	rte_spinlock_t *uar_lock_cq;
 	/* CQ (UAR) access lock required for 32bit implementations */
 #endif
+	struct rte_eth_rxseg rxseg[MLX5_MAX_RXQ_NSEG];
+	/* Buffer split segment descriptions - sizes, offsets, pools. */
+	uint32_t rxseg_n; /* Number of split segment descriptions. */
 	uint32_t tunnel; /* Tunnel information. */
 	uint64_t flow_meta_mask;
 	int32_t flow_meta_offset;
@@ -411,6 +414,10 @@ int mlx5_rx_queue_stop_primary(struct rte_eth_dev *dev, uint16_t queue_id);
 int mlx5_rx_queue_setup(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 			unsigned int socket, const struct rte_eth_rxconf *conf,
 			struct rte_mempool *mp);
+int mlx5_rx_queue_setup_ex
+	(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
+	 unsigned int socket, const struct rte_eth_rxconf *conf,
+	 const struct rte_eth_rxseg *rx_seg, uint16_t n_seg);
 int mlx5_rx_hairpin_queue_setup
 	(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 	 const struct rte_eth_hairpin_conf *hairpin_conf);
@@ -425,7 +432,8 @@ int mlx5_rxq_obj_verify(struct rte_eth_dev *dev);
 struct mlx5_rxq_ctrl *mlx5_rxq_new(struct rte_eth_dev *dev, uint16_t idx,
 				   uint16_t desc, unsigned int socket,
 				   const struct rte_eth_rxconf *conf,
-				   struct rte_mempool *mp);
+				   const struct rte_eth_rxseg *rx_seg,
+				   uint16_t n_seg);
 struct mlx5_rxq_ctrl *mlx5_rxq_hairpin_new
 	(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 	 const struct rte_eth_hairpin_conf *hairpin_conf);
