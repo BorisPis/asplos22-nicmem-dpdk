@@ -424,6 +424,13 @@ extern uint8_t bitrate_enabled;
 extern struct rte_fdir_conf fdir_conf;
 
 /*
+ * Configuration of packet segments used to scatter received packets
+ * if some of split features is configured.
+ */
+extern uint16_t rx_pkt_seg_lengths[MAX_SEGS_BUFFER_SPLIT];
+extern uint8_t  rx_pkt_nb_segs; /**< Number of segments to split */
+
+/*
  * Configuration of packet segments used by the "txonly" processing engine.
  */
 #define TXONLY_DEF_PACKET_LEN 64
@@ -789,6 +796,8 @@ void set_xstats_hide_zero(uint8_t on_off);
 void set_verbose_level(uint16_t vb_level);
 void set_tx_pkt_segments(unsigned *seg_lengths, unsigned nb_segs);
 void show_tx_pkt_segments(void);
+void show_rx_pkt_segments(void);
+void set_tx_pkt_segments(unsigned int *seg_lengths, unsigned int nb_segs);
 void set_tx_pkt_times(unsigned int *tx_times);
 void show_tx_pkt_times(void);
 void set_tx_pkt_split(const char *name);
