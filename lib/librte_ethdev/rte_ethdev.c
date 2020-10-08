@@ -128,6 +128,7 @@ static const struct {
 	RTE_RX_OFFLOAD_BIT2STR(SCTP_CKSUM),
 	RTE_RX_OFFLOAD_BIT2STR(OUTER_UDP_CKSUM),
 	RTE_RX_OFFLOAD_BIT2STR(RSS_HASH),
+	RTE_RX_OFFLOAD_BIT2STR(BUFFER_SPLIT),
 };
 
 #undef RTE_RX_OFFLOAD_BIT2STR
@@ -1928,7 +1929,153 @@ rte_eth_rx_queue_setup(uint16_t port_id, uint16_t rx_queue_id,
 	}
 
 	rte_ethdev_trace_rxq_setup(port_id, rx_queue_id, nb_rx_desc, mp,
-		rx_conf, ret);
+				   rx_conf, ret);
+	return eth_err(port_id, ret);
+}
+
+int
+rte_eth_rx_queue_setup_ex(uint16_t port_id, uint16_t rx_queue_id,
+			  uint16_t nb_rx_desc, unsigned int socket_id,
+			  const struct rte_eth_rxconf *rx_conf,
+			  const struct rte_eth_rxseg *rx_seg, uint16_t n_seg)
+{
+	int ret;
+	uint16_t seg_idx;
+	uint32_t mbp_buf_size;
+	struct rte_eth_dev *dev;
+	struct rte_eth_dev_info dev_info;
+	struct rte_eth_rxconf local_conf;
+	void **rxq;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -EINVAL);
+
+	dev = &rte_eth_devices[port_id];
+	if (rx_queue_id >= dev->data->nb_rx_queues) {
+		RTE_ETHDEV_LOG(ERR, "Invalid RX queue_id=%u\n", rx_queue_id);
+		return -EINVAL;
+	}
+
+	if (rx_seg == NULL) {
+		RTE_ETHDEV_LOG(ERR, "Invalid null description pointer\n");
+		return -EINVAL;
+	}
+
+	if (n_seg == 0) {
+		RTE_ETHDEV_LOG(ERR, "Invalid zero description number\n");
+		return -EINVAL;
+	}
+
+	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->rx_queue_setup_ex, -ENOTSUP);
+
+	ret = rte_eth_dev_info_get(port_id, &dev_info);
+	if (ret != 0)
+		return ret;
+
+	for (seg_idx = 0; seg_idx < n_seg; seg_idx++) {
+		struct rte_mempool *mp = rx_seg[seg_idx].mp;
+
+		if (mp->private_data_size <
+		    sizeof(struct rte_pktmbuf_pool_private)) {
+			RTE_ETHDEV_LOG(ERR, "%s private_data_size %d < %d\n",
+				       mp->name, (int)mp->private_data_size,
+				       (int)sizeof(struct rte_pktmbuf_pool_private));
+			return -ENOSPC;
+		}
+
+		mbp_buf_size = rte_pktmbuf_data_room_size(mp);
+		if (mbp_buf_size < rx_seg[seg_idx].length +
+		    rx_seg[seg_idx].offset +
+		    (seg_idx ? 0 :
+		     (uint32_t)RTE_PKTMBUF_HEADROOM)) {
+			RTE_ETHDEV_LOG(ERR,
+				       "%s mbuf_data_room_size %d < %d"
+				       " (segment length=%d + segment offset=%d)\n",
+				       mp->name, (int)mbp_buf_size,
+				       (int)(rx_seg[seg_idx].length +
+					     rx_seg[seg_idx].offset),
+				       (int)rx_seg[seg_idx].length,
+				       (int)rx_seg[seg_idx].offset);
+			return -EINVAL;
+		}
+	}
+
+	if (nb_rx_desc == 0) {
+		nb_rx_desc = dev_info.default_rxportconf.ring_size;
+		if (nb_rx_desc == 0)
+			nb_rx_desc = RTE_ETH_DEV_FALLBACK_RX_RINGSIZE;
+	}
+
+	if (nb_rx_desc > dev_info.rx_desc_lim.nb_max ||
+	    nb_rx_desc < dev_info.rx_desc_lim.nb_min ||
+	    nb_rx_desc % dev_info.rx_desc_lim.nb_align != 0) {
+
+		RTE_ETHDEV_LOG(ERR,
+			       "Invalid value for nb_rx_desc(=%hu), should be: "
+			       "<= %hu, >= %hu, and a product of %hu\n",
+			       nb_rx_desc, dev_info.rx_desc_lim.nb_max,
+			       dev_info.rx_desc_lim.nb_min,
+			       dev_info.rx_desc_lim.nb_align);
+		return -EINVAL;
+	}
+
+	if (dev->data->dev_started &&
+	    !(dev_info.dev_capa &
+	      RTE_ETH_DEV_CAPA_RUNTIME_RX_QUEUE_SETUP))
+		return -EBUSY;
+
+	if (dev->data->dev_started &&
+	    (dev->data->rx_queue_state[rx_queue_id] !=
+	     RTE_ETH_QUEUE_STATE_STOPPED))
+		return -EBUSY;
+
+	rxq = dev->data->rx_queues;
+	if (rxq[rx_queue_id]) {
+		RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->rx_queue_release,
+					-ENOTSUP);
+		(*dev->dev_ops->rx_queue_release)(rxq[rx_queue_id]);
+		rxq[rx_queue_id] = NULL;
+	}
+
+	if (rx_conf == NULL)
+		rx_conf = &dev_info.default_rxconf;
+
+	local_conf = *rx_conf;
+
+	local_conf.offloads &= ~dev->data->dev_conf.rxmode.offloads;
+
+	if ((local_conf.offloads & dev_info.rx_queue_offload_capa) !=
+	    local_conf.offloads) {
+		RTE_ETHDEV_LOG(ERR,
+			       "Ethdev port_id=%d rx_queue_id=%d, new added offloads"
+			       " 0x%"PRIx64" must be within per-queue offload"
+			       " capabilities 0x%"PRIx64" in %s()\n",
+			       port_id, rx_queue_id, local_conf.offloads,
+			       dev_info.rx_queue_offload_capa,
+			       __func__);
+		return -EINVAL;
+	}
+
+	if (local_conf.offloads & DEV_RX_OFFLOAD_TCP_LRO) {
+		if (dev->data->dev_conf.rxmode.max_lro_pkt_size == 0)
+			dev->data->dev_conf.rxmode.max_lro_pkt_size =
+				dev->data->dev_conf.rxmode.max_rx_pkt_len;
+		int ret = check_lro_pkt_size(port_id,
+					     dev->data->dev_conf.rxmode.max_lro_pkt_size,
+					     dev->data->dev_conf.rxmode.max_rx_pkt_len,
+					     dev_info.max_lro_pkt_size);
+		if (ret != 0)
+			return ret;
+	}
+
+	ret = (*dev->dev_ops->rx_queue_setup_ex)(dev, rx_queue_id, nb_rx_desc,
+						 socket_id, &local_conf,
+						 rx_seg, n_seg);
+	if (!ret) {
+		if (!dev->data->min_rx_buf_size ||
+		    dev->data->min_rx_buf_size > mbp_buf_size)
+			dev->data->min_rx_buf_size = mbp_buf_size;
+	}
+
 	return eth_err(port_id, ret);
 }
 

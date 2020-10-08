@@ -272,6 +272,15 @@ typedef int (*eth_tx_queue_setup_t)(struct rte_eth_dev *dev,
 				    const struct rte_eth_txconf *tx_conf);
 /**< @internal Setup a transmit queue of an Ethernet device. */
 
+typedef int (*eth_rx_queue_setup_ex_t)(struct rte_eth_dev *dev,
+				       uint16_t rx_queue_id,
+				       uint16_t nb_rx_desc,
+				       unsigned int socket_id,
+				       const struct rte_eth_rxconf *rx_conf,
+				       const struct rte_eth_rxseg *rx_seg,
+				       uint16_t n_seg);
+/**< @internal extended Set up a receive queue of an Ethernet device. */
+
 typedef int (*eth_rx_enable_intr_t)(struct rte_eth_dev *dev,
 				    uint16_t rx_queue_id);
 /**< @internal Enable interrupt of a receive queue of an Ethernet device. */
@@ -659,6 +668,7 @@ struct eth_dev_ops {
 	eth_queue_start_t          tx_queue_start;/**< Start TX for a queue. */
 	eth_queue_stop_t           tx_queue_stop; /**< Stop TX for a queue. */
 	eth_rx_queue_setup_t       rx_queue_setup;/**< Set up device RX queue. */
+	eth_rx_queue_setup_ex_t    rx_queue_setup_ex;/**< Extended RX setup. */
 	eth_queue_release_t        rx_queue_release; /**< Release RX queue. */
 	eth_rx_queue_count_t       rx_queue_count;
 	/**< Get the number of used RX descriptors. */
