@@ -108,6 +108,10 @@ static struct lcore_params lcore_params_array_default[] = {
 	{3, 1, 3},
 };
 
+#define MAX_SEGS_BUFFER_SPLIT (2)
+uint16_t rx_pkt_seg_lengths[MAX_SEGS_BUFFER_SPLIT] = {RTE_PKTMBUF_HEADROOM + 64, 2048};
+uint8_t  rx_pkt_nb_segs = 2; /**< Number of segments to split */
+
 static struct lcore_params * lcore_params = lcore_params_array_default;
 static uint16_t nb_lcore_params = sizeof(lcore_params_array_default) /
 				sizeof(lcore_params_array_default[0]);
@@ -117,7 +121,7 @@ static struct rte_eth_conf port_conf = {
 		.mq_mode = ETH_MQ_RX_RSS,
 		.max_rx_pkt_len = RTE_ETHER_MAX_LEN,
 		.split_hdr_size = 0,
-		.offloads = DEV_RX_OFFLOAD_CHECKSUM,
+		.offloads = DEV_RX_OFFLOAD_CHECKSUM | DEV_RX_OFFLOAD_BUFFER_SPLIT | DEV_RX_OFFLOAD_SCATTER,
 	},
 	.rx_adv_conf = {
 		.rss_conf = {
@@ -127,10 +131,11 @@ static struct rte_eth_conf port_conf = {
 	},
 	.txmode = {
 		.mq_mode = ETH_MQ_TX_NONE,
+		.offloads = DEV_TX_OFFLOAD_MULTI_SEGS,
 	},
 };
 
-static struct rte_mempool *pktmbuf_pool[RTE_MAX_ETHPORTS][NB_SOCKETS];
+static struct rte_mempool *pktmbuf_pool[RTE_MAX_ETHPORTS][NB_SOCKETS][MAX_SEGS_BUFFER_SPLIT];
 static uint8_t lkp_per_socket[NB_SOCKETS];
 
 struct l3fwd_lkp_mode {
@@ -747,7 +752,7 @@ init_mem(uint16_t portid, unsigned int nb_mbuf)
 {
 	struct lcore_conf *qconf;
 	int socketid;
-	unsigned lcore_id;
+	unsigned lcore_id, seg_i;
 	char s[64];
 
 	for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
@@ -765,28 +770,31 @@ init_mem(uint16_t portid, unsigned int nb_mbuf)
 				socketid, lcore_id, NB_SOCKETS);
 		}
 
-		if (pktmbuf_pool[portid][socketid] == NULL) {
-			snprintf(s, sizeof(s), "mbuf_pool_%d:%d",
-				 portid, socketid);
-			pktmbuf_pool[portid][socketid] =
-				rte_pktmbuf_pool_create(s, nb_mbuf,
-					MEMPOOL_CACHE_SIZE, 0,
-					RTE_MBUF_DEFAULT_BUF_SIZE, socketid);
-			if (pktmbuf_pool[portid][socketid] == NULL)
-				rte_exit(EXIT_FAILURE,
-					"Cannot init mbuf pool on socket %d\n",
-					socketid);
-			else
-				printf("Allocated mbuf pool on socket %d\n",
-					socketid);
-
-			/* Setup either LPM or EM(f.e Hash). But, only once per
-			 * available socket.
-			 */
-			if (!lkp_per_socket[socketid]) {
-				l3fwd_lkp.setup(socketid);
-				lkp_per_socket[socketid] = 1;
+		for (seg_i = 0; seg_i < rx_pkt_nb_segs; seg_i++) {
+			printf("alloc for seg %d\n", seg_i);
+			if (pktmbuf_pool[portid][socketid][seg_i] == NULL) {
+				snprintf(s, sizeof(s), "mbuf_pool_%d:%d:%d",
+					 portid, socketid, seg_i);
+				pktmbuf_pool[portid][socketid][seg_i] =
+					rte_pktmbuf_pool_create(s, nb_mbuf,
+						MEMPOOL_CACHE_SIZE, 0,
+						rx_pkt_seg_lengths[seg_i], socketid);
+				if (pktmbuf_pool[portid][socketid][seg_i] == NULL)
+					rte_exit(EXIT_FAILURE,
+						"Cannot init mbuf pool on socket %d\n",
+						socketid);
+				else
+					printf("Allocated mbuf pool on socket %d segment %d of size %d\n",
+						socketid, seg_i, rx_pkt_seg_lengths[seg_i]);
 			}
+		}
+
+		/* Setup either LPM or EM(f.e Hash). But, only once per
+		 * available socket.
+		 */
+		if (!lkp_per_socket[socketid]) {
+			l3fwd_lkp.setup(socketid);
+			lkp_per_socket[socketid] = 1;
 		}
 		qconf = &lcore_conf[lcore_id];
 		qconf->ipv4_lookup_struct =
@@ -1052,6 +1060,8 @@ l3fwd_poll_resource_setup(void)
 		/* init RX queues */
 		for(queue = 0; queue < qconf->n_rx_queue; ++queue) {
 			struct rte_eth_rxconf rxq_conf;
+			struct rte_eth_rxseg rx_seg[MAX_SEGS_BUFFER_SPLIT] = {};
+			unsigned seg_i;
 
 			portid = qconf->rx_queue_list[queue].port_id;
 			queueid = qconf->rx_queue_list[queue].queue_id;
@@ -1073,16 +1083,28 @@ l3fwd_poll_resource_setup(void)
 
 			rxq_conf = dev_info.default_rxconf;
 			rxq_conf.offloads = port_conf.rxmode.offloads;
+			for (seg_i = 0; seg_i < rx_pkt_nb_segs; seg_i++) {
+				if (seg_i)
+					rx_seg[seg_i].length = rx_pkt_seg_lengths[seg_i];
+				else
+					rx_seg[0].length = rx_pkt_seg_lengths[seg_i] - RTE_PKTMBUF_HEADROOM;
+
+				if (!per_port_pool)
+					rx_seg[seg_i].mp = pktmbuf_pool[0][socketid][seg_i];
+				else
+					rx_seg[seg_i].mp = pktmbuf_pool[portid][socketid][seg_i];
+			}
+
 			if (!per_port_pool)
-				ret = rte_eth_rx_queue_setup(portid, queueid,
+				ret = rte_eth_rx_queue_setup_ex(portid, queueid,
 						nb_rxd, socketid,
 						&rxq_conf,
-						pktmbuf_pool[0][socketid]);
+						rx_seg, rx_pkt_nb_segs);
 			else
-				ret = rte_eth_rx_queue_setup(portid, queueid,
+				ret = rte_eth_rx_queue_setup_ex(portid, queueid,
 						nb_rxd, socketid,
 						&rxq_conf,
-						pktmbuf_pool[portid][socketid]);
+						rx_seg, rx_pkt_nb_segs);
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE,
 				"rte_eth_rx_queue_setup: err=%d, port=%d\n",
