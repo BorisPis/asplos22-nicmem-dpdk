@@ -759,6 +759,31 @@ out:
 }
 
 int
+rte_dev_alloc_dm(struct rte_device *dev, void **addr,
+		 size_t *len)
+{
+	printf("name %s\n", dev->bus->name);
+	if (dev->bus->alloc_dm == NULL) {
+		rte_errno = ENOTSUP;
+		return -1;
+	}
+
+	return dev->bus->alloc_dm(dev, addr, len);
+}
+
+int
+rte_dev_get_dma_map(struct rte_device *dev, void *addr, uint64_t iova,
+		size_t len)
+{
+	if (dev->bus->get_dma_map == NULL) {
+		rte_errno = ENOTSUP;
+		return -1;
+	}
+
+	return dev->bus->get_dma_map(dev, addr, iova, len);
+}
+
+int
 rte_dev_dma_map(struct rte_device *dev, void *addr, uint64_t iova,
 		size_t len)
 {

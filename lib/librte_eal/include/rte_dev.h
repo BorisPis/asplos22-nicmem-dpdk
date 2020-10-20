@@ -490,6 +490,16 @@ __rte_experimental
 int
 rte_dev_dma_map(struct rte_device *dev, void *addr, uint64_t iova, size_t len);
 
+__rte_experimental
+int
+rte_dev_alloc_dm(struct rte_device *dev, void **addr,
+		 size_t *len);
+
+__rte_experimental
+int
+rte_dev_get_dma_map(struct rte_device *dev, void *addr, uint64_t iova,
+		size_t len);
+
 /**
  * Device level DMA unmap function.
  * After a successful call, the memory segment will no longer be

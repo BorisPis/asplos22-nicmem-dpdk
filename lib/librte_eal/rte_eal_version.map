@@ -320,6 +320,8 @@ EXPERIMENTAL {
 	# added in 19.05
 	rte_dev_dma_map;
 	rte_dev_dma_unmap;
+	rte_dev_alloc_dm;
+	rte_dev_get_dma_map;
 	rte_fbarray_find_biggest_free;
 	rte_fbarray_find_biggest_used;
 	rte_fbarray_find_rev_biggest_free;
