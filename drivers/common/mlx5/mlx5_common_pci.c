@@ -341,6 +341,52 @@ mlx5_common_pci_remove(struct rte_pci_device *pci_dev)
 }
 
 static int
+mlx5_common_pci_alloc_dm(struct rte_pci_device *pci_dev, void **addr,
+			 size_t *len)
+{
+	struct mlx5_pci_driver *driver = NULL;
+	struct mlx5_pci_device *dev;
+	int ret = -EINVAL;
+
+	dev = pci_to_mlx5_device(pci_dev);
+	if (!dev)
+		return -ENODEV;
+	TAILQ_FOREACH(driver, &drv_list, next) {
+		if (device_class_enabled(dev, driver->driver_class) &&
+		    driver->pci_driver.alloc_dm) {
+			ret = driver->pci_driver.alloc_dm(pci_dev, addr,
+							 len);
+			if (ret)
+				return ret;
+		}
+	}
+	return ret;
+}
+
+static int
+mlx5_common_pci_get_dma_map(struct rte_pci_device *pci_dev, void *addr,
+			    uint64_t iova, size_t len)
+{
+	struct mlx5_pci_driver *driver = NULL;
+	struct mlx5_pci_device *dev;
+	int ret = -EINVAL;
+
+	dev = pci_to_mlx5_device(pci_dev);
+	if (!dev)
+		return -ENODEV;
+	TAILQ_FOREACH(driver, &drv_list, next) {
+		if (device_class_enabled(dev, driver->driver_class) &&
+		    driver->pci_driver.get_dma_map) {
+			ret = driver->pci_driver.get_dma_map(pci_dev, addr,
+							 iova, len);
+			if (ret)
+				return ret;
+		}
+	}
+	return ret;
+}
+
+static int
 mlx5_common_pci_dma_map(struct rte_pci_device *pci_dev, void *addr,
 			uint64_t iova, size_t len)
 {
@@ -411,6 +457,8 @@ static struct rte_pci_driver mlx5_pci_driver = {
 	.probe = mlx5_common_pci_probe,
 	.remove = mlx5_common_pci_remove,
 	.dma_map = mlx5_common_pci_dma_map,
+	.alloc_dm = mlx5_common_pci_alloc_dm,
+	.get_dma_map = mlx5_common_pci_get_dma_map,
 	.dma_unmap = mlx5_common_pci_dma_unmap,
 };
 
