@@ -132,6 +132,11 @@ typedef int (pci_remove_t)(struct rte_pci_device *);
 typedef int (pci_dma_map_t)(struct rte_pci_device *dev, void *addr,
 			    uint64_t iova, size_t len);
 
+typedef int (pci_alloc_t)(struct rte_pci_device *dev, void **addr,
+				size_t *len);
+typedef int (pci_get_dma_map_t)(struct rte_pci_device *dev, void *addr,
+				uint64_t iova, size_t len);
+
 /**
  * Driver-specific DMA un-mapping. After a successful call the device
  * will not be able to read/write from/to this segment.
@@ -160,6 +165,8 @@ struct rte_pci_driver {
 	struct rte_pci_bus *bus;           /**< PCI bus reference. */
 	pci_probe_t *probe;                /**< Device Probe function. */
 	pci_remove_t *remove;              /**< Device Remove function. */
+	pci_alloc_t *alloc_dm;	           /**< alloc device memory function. */
+	pci_get_dma_map_t *get_dma_map;	   /**< device memory dma map function. */
 	pci_dma_map_t *dma_map;		   /**< device dma map function. */
 	pci_dma_unmap_t *dma_unmap;	   /**< device dma unmap function. */
 	const struct rte_pci_id *id_table; /**< ID table, NULL terminated. */

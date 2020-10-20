@@ -538,6 +538,38 @@ pci_unplug(struct rte_device *dev)
 }
 
 static int
+pci_alloc_dm(struct rte_device *dev, void **addr, size_t *len)
+{
+	struct rte_pci_device *pdev = RTE_DEV_TO_PCI(dev);
+
+	if (!pdev || !pdev->driver) {
+		rte_errno = EINVAL;
+		return -1;
+	}
+	if (pdev->driver->alloc_dm)
+		return pdev->driver->alloc_dm(pdev, addr, len);
+
+	rte_errno = ENOTSUP;
+	return -1;
+}
+
+static int
+pci_get_dma_map(struct rte_device *dev, void *addr, uint64_t iova, size_t len)
+{
+	struct rte_pci_device *pdev = RTE_DEV_TO_PCI(dev);
+
+	if (!pdev || !pdev->driver) {
+		rte_errno = EINVAL;
+		return -1;
+	}
+	if (pdev->driver->get_dma_map)
+		return pdev->driver->get_dma_map(pdev, addr, iova, len);
+
+	rte_errno = ENOTSUP;
+	return -1;
+}
+
+static int
 pci_dma_map(struct rte_device *dev, void *addr, uint64_t iova, size_t len)
 {
 	struct rte_pci_device *pdev = RTE_DEV_TO_PCI(dev);
@@ -673,6 +705,8 @@ struct rte_pci_bus rte_pci_bus = {
 		.plug = pci_plug,
 		.unplug = pci_unplug,
 		.parse = pci_parse,
+		.alloc_dm = pci_alloc_dm,
+		.get_dma_map = pci_get_dma_map,
 		.dma_map = pci_dma_map,
 		.dma_unmap = pci_dma_unmap,
 		.get_iommu_class = rte_pci_get_iommu_class,
