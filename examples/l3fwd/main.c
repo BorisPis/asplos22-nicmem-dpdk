@@ -805,8 +805,8 @@ init_mem(uint16_t portid, unsigned int nb_mbuf)
 					socketid, 0, rx_pkt_seg_lengths[0]);
 		}
 		for (seg_i = 1; seg_i < rx_pkt_nb_segs; seg_i++) {
-			struct rte_pktmbuf_extmem ext_mem;
-			int ret;
+			struct rte_pktmbuf_extmem ext_mem[256];
+			int ret, ext_mem_num = 1;
 
 			printf("alloc for seg %d\n", seg_i);
 			if (pktmbuf_pool[portid][socketid][seg_i] != NULL)
@@ -831,30 +831,64 @@ init_mem(uint16_t portid, unsigned int nb_mbuf)
 				continue;
 			}
 
-			ext_mem.elt_size = rx_pkt_seg_lengths[seg_i];
-			ext_mem.buf_len = nb_mbuf * ext_mem.elt_size;
+			ext_mem[0].elt_size = rx_pkt_seg_lengths[seg_i];
+			ext_mem[0].buf_len = nb_mbuf * ext_mem[0].elt_size;
 			if (l3fwd_mem_type == MEM_HOST_PINNED) {
-				printf("alloc external pinned mem\n");
-				ext_mem.buf_ptr = rte_malloc_socket("extmem", ext_mem.buf_len, 0, socketid);
-				ext_mem.buf_iova = 0; // ignored in mlx5
+				printf("Alloc external pinned mem\n");
+				ext_mem[0].buf_ptr = rte_malloc_socket("extmem", ext_mem[0].buf_len, 0, socketid);
+				ext_mem[0].buf_iova = 0; // ignored in mlx5
+				ret = rte_dev_dma_map(rte_eth_devices[portid].device,
+						      ext_mem[0].buf_ptr, ext_mem[0].buf_iova,
+						      ext_mem[0].buf_len);
+				if (ret)
+					rte_exit(EXIT_FAILURE,
+						"DMA map failed type %d\n", l3fwd_mem_type);
 			} else { // MEM_NIC_PINNED
-				printf("alloc nic pinned mem\n");
-				ext_mem.buf_iova = RTE_BAD_IOVA;
-				rte_exit(EXIT_FAILURE,
-					"NIC memory is not supported yet\n");
+				int totsz = 0, i = 0;
+
+				printf("Alloc nic pinned mem\n");
+				ret = rte_dev_alloc_dm(rte_eth_devices[portid].device,
+						       &ext_mem[0].buf_ptr,
+						       &ext_mem[0].buf_len);
+				if (ret)
+					rte_exit(EXIT_FAILURE,
+						 "Failed to allocate NIC memory\n");
+
+				ext_mem[0].buf_iova = RTE_BAD_IOVA;
+				ret = rte_extmem_register(ext_mem[0].buf_ptr,
+						    ext_mem[0].buf_len, NULL,
+						    ext_mem[0].buf_iova, 4096);
+				if (ret)
+					rte_exit(EXIT_FAILURE,
+						"Failed to register NIC memory %p %d\n",
+						ext_mem[0].buf_ptr, ext_mem[0].buf_len);
+
+				ret = rte_dev_get_dma_map(rte_eth_devices[portid].device,
+							  ext_mem[0].buf_ptr, ext_mem[0].buf_iova,
+							  ext_mem[0].buf_len);
+				if (ret)
+					rte_exit(EXIT_FAILURE,
+						 "NIC DMA map failed\n");
+
+				/* This fills external memory with repeated
+				 * instances of NIC memory to overcome the
+				 * limitation on NIC memory size
+				 */
+				totsz = ext_mem[0].buf_len / ext_mem[0].elt_size;
+				while (totsz < nb_mbuf) {
+					ext_mem[++i] = ext_mem[0];
+					totsz += (ext_mem[i].buf_len / ext_mem[i].elt_size);
+				}
+				ext_mem_num = i + 1;
+				printf("%p %d\n", ext_mem[1].buf_ptr, ext_mem[1].buf_len);
 			}
-			ret = rte_dev_dma_map(rte_eth_devices[portid].device,
-					      ext_mem.buf_ptr, ext_mem.buf_iova,
-					      ext_mem.buf_len);
-			if (ret)
-				rte_exit(EXIT_FAILURE,
-					"DMA map failed type %d\n", l3fwd_mem_type);
 
 			pktmbuf_pool[portid][socketid][seg_i] =
 				rte_pktmbuf_pool_create_extbuf(s, nb_mbuf,
 							       MEMPOOL_CACHE_SIZE, 0,
-							       ext_mem.elt_size,
-							       socketid, &ext_mem, 1);
+							       ext_mem[0].elt_size,
+							       socketid, &ext_mem[0],
+							       ext_mem_num);
 
 				// rte_pktmbuf_pool_create(s, nb_mbuf,
 				// 	MEMPOOL_CACHE_SIZE, 0,
@@ -1096,6 +1130,7 @@ l3fwd_poll_resource_setup(void)
 		if (ret < 0)
 			rte_exit(EXIT_FAILURE, "init_mem failed\n");
 
+		printf("Using %d mbufs\n", NB_MBUF(nb_ports));
 		/* init one TX queue per couple (lcore,port) */
 		queueid = 0;
 		for (lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
