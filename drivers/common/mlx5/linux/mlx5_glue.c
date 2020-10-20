@@ -36,6 +36,42 @@ mlx5_glue_dealloc_pd(struct ibv_pd *pd)
 	return ibv_dealloc_pd(pd);
 }
 
+static int
+mlx5_glue_get_dm_size(struct ibv_context *context)
+{
+	struct ibv_device_attr_ex attrx;
+
+	memset(&attrx, 0, sizeof(attrx));
+	if (ibv_query_device_ex(context, NULL, &attrx)) {
+		fprintf(stderr, "Couldn't query device for its features\n");
+		return 0;
+	}
+
+	return attrx.max_dm_size;
+}
+
+static struct ibv_dm *
+mlx5_glue_alloc_dm(struct ibv_context *context)
+{
+	struct ibv_device_attr_ex attrx;
+	struct ibv_alloc_dm_attr dm_attr;
+
+	memset(&attrx, 0, sizeof(attrx));
+	memset(&dm_attr, 0, sizeof(dm_attr));
+	if (ibv_query_device_ex(context, NULL, &attrx)) {
+		fprintf(stderr, "Couldn't query device for its features\n");
+		return NULL;
+	}
+
+	if (!attrx.max_dm_size) {
+		fprintf(stderr, "Device doesn't support dm allocation\n");
+		return NULL;
+	}
+
+	dm_attr.length = attrx.max_dm_size;
+	return ibv_alloc_dm(context, &dm_attr);
+}
+
 static struct ibv_device **
 mlx5_glue_get_device_list(int *num_devices)
 {
@@ -224,6 +260,12 @@ static struct ibv_mr *
 mlx5_glue_reg_mr(struct ibv_pd *pd, void *addr, size_t length, int access)
 {
 	return ibv_reg_mr(pd, addr, length, access);
+}
+
+static struct ibv_mr *
+mlx5_glue_reg_dm_mr(struct ibv_pd *pd, struct ibv_dm *dm, void *addr, size_t length, int access)
+{
+	return ibv_reg_dm_mr(pd, dm, addr, length, access);
 }
 
 static struct ibv_mr *
@@ -1243,6 +1285,8 @@ const struct mlx5_glue *mlx5_glue = &(const struct mlx5_glue) {
 	.fork_init = mlx5_glue_fork_init,
 	.alloc_pd = mlx5_glue_alloc_pd,
 	.dealloc_pd = mlx5_glue_dealloc_pd,
+	.get_dm_size = mlx5_glue_get_dm_size,
+	.alloc_dm = mlx5_glue_alloc_dm,
 	.get_device_list = mlx5_glue_get_device_list,
 	.free_device_list = mlx5_glue_free_device_list,
 	.open_device = mlx5_glue_open_device,
@@ -1270,6 +1314,7 @@ const struct mlx5_glue *mlx5_glue = &(const struct mlx5_glue) {
 	.destroy_qp = mlx5_glue_destroy_qp,
 	.modify_qp = mlx5_glue_modify_qp,
 	.reg_mr = mlx5_glue_reg_mr,
+	.reg_dm_mr = mlx5_glue_reg_dm_mr,
 	.alloc_null_mr = mlx5_glue_alloc_null_mr,
 	.dereg_mr = mlx5_glue_dereg_mr,
 	.create_counter_set = mlx5_glue_create_counter_set,

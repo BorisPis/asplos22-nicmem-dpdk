@@ -2198,10 +2198,12 @@ mlx5_os_read_dev_stat(struct mlx5_priv *priv, const char *ctr_name,
  */
 void
 mlx5_os_set_reg_mr_cb(mlx5_reg_mr_t *reg_mr_cb,
-		      mlx5_dereg_mr_t *dereg_mr_cb)
+		      mlx5_dereg_mr_t *dereg_mr_cb,
+		      mlx5_reg_dm_mr_t *reg_dm_mr_cb)
 {
 	*reg_mr_cb = mlx5_verbs_ops.reg_mr;
 	*dereg_mr_cb = mlx5_verbs_ops.dereg_mr;
+	*reg_dm_mr_cb = mlx5_verbs_ops.reg_dm_mr;
 }
 
 /**

@@ -8,6 +8,7 @@
 struct mlx5_verbs_ops {
 	mlx5_reg_mr_t reg_mr;
 	mlx5_dereg_mr_t dereg_mr;
+	mlx5_reg_dm_mr_t reg_dm_mr;
 };
 
 /* Verbs ops struct */

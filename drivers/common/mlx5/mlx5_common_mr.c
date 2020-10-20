@@ -1011,6 +1011,39 @@ mlx5_mr_flush_local_cache(struct mlx5_mr_ctrl *mr_ctrl)
 		(void *)mr_ctrl, mr_ctrl->cur_gen);
 }
 
+struct mlx5_mr *
+mlx5_create_dm_mr_ext(void *pd, void *dm, uintptr_t addr, size_t len, int socket_id,
+		   mlx5_reg_dm_mr_t reg_mr_cb)
+{
+	struct mlx5_mr *mr = NULL;
+
+	mr = mlx5_malloc(MLX5_MEM_RTE | MLX5_MEM_ZERO,
+			 RTE_ALIGN_CEIL(sizeof(*mr), RTE_CACHE_LINE_SIZE),
+			 RTE_CACHE_LINE_SIZE, socket_id);
+	if (mr == NULL)
+		return NULL;
+	reg_mr_cb(pd, dm, (void *)addr, len, &mr->pmd_mr);
+	if (mr->pmd_mr.obj == NULL) {
+		DRV_LOG(WARNING,
+			"Fail to create MR for address (%p)",
+			(void *)addr);
+		mlx5_free(mr);
+		return NULL;
+	}
+	mr->msl = NULL; /* Mark it is external memory. */
+	mr->ms_bmp = NULL;
+	mr->ms_n = 1;
+	mr->ms_bmp_n = 1;
+	DRV_LOG(DEBUG,
+		"DM MR CREATED (%p) for external memory %p:\n"
+		"  [0x%" PRIxPTR ", 0x%" PRIxPTR "),"
+		" lkey=0x%x base_idx=%u ms_n=%u, ms_bmp_n=%u",
+		(void *)mr, (void *)addr,
+		addr, addr + len, rte_cpu_to_be_32(mr->pmd_mr.lkey),
+		mr->ms_base_idx, mr->ms_n, mr->ms_bmp_n);
+	return mr;
+}
+
 /**
  * Creates a memory region for external memory, that is memory which is not
  * part of the DPDK memory segments.

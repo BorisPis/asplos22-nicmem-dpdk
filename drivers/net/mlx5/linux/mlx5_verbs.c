@@ -56,8 +56,15 @@ mlx5_dereg_mr(struct mlx5_pmd_mr *pmd_mr)
 	mlx5_common_verbs_dereg_mr(pmd_mr);
 }
 
+static int
+mlx5_reg_dm_mr(void *pd, void *dm, void *addr, size_t length,
+		 struct mlx5_pmd_mr *pmd_mr)
+{
+	return mlx5_common_verbs_reg_dm_mr(pd, dm, addr, length, pmd_mr);
+}
 /* verbs operations. */
 const struct mlx5_verbs_ops mlx5_verbs_ops = {
 	.reg_mr = mlx5_reg_mr,
 	.dereg_mr = mlx5_dereg_mr,
+	.reg_dm_mr = mlx5_reg_dm_mr,
 };

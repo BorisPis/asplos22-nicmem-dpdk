@@ -70,3 +70,25 @@ mlx5_common_verbs_dereg_mr(struct mlx5_pmd_mr *pmd_mr)
 	}
 }
 
+int
+mlx5_common_verbs_reg_dm_mr(void *pd, void *dm, void *addr, size_t length,
+			 struct mlx5_pmd_mr *pmd_mr)
+{
+	struct ibv_mr *ibv_mr;
+
+	memset(pmd_mr, 0, sizeof(*pmd_mr));
+	ibv_mr = mlx5_glue->reg_dm_mr(pd, dm, addr, length,
+				   IBV_ACCESS_LOCAL_WRITE |
+				   IBV_ACCESS_ZERO_BASED);
+	if (!ibv_mr)
+		return -1;
+
+	*pmd_mr = (struct mlx5_pmd_mr){
+		.lkey = ibv_mr->lkey,
+		.addr = ibv_mr->addr,
+		.len = ibv_mr->length,
+		.obj = (void *)ibv_mr,
+	};
+	return 0;
+}
+
