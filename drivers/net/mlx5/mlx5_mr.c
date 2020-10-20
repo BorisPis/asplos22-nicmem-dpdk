@@ -310,6 +310,59 @@ pci_dev_to_eth_dev(struct rte_pci_device *pdev)
 	return &rte_eth_devices[port_id];
 }
 
+int
+mlx5_alloc_dm(struct rte_pci_device *pdev, void **addr,
+	      size_t *len)
+{
+	struct rte_eth_dev *dev;
+	struct mlx5_priv *priv;
+
+	DRV_LOG(WARNING, "Allocating NIC memory\n");
+	dev = pci_dev_to_eth_dev(pdev);
+	priv = dev->data->dev_private;
+	*addr = (void *) MLX5_DM_OFF;
+	*len = priv->sh->dm_size;
+	return 0;
+}
+
+int
+mlx5_get_dma_map(struct rte_pci_device *pdev, void *addr,
+	     uint64_t iova __rte_unused, size_t len)
+{
+	struct rte_eth_dev *dev;
+	struct mlx5_mr *mr;
+	struct mlx5_priv *priv;
+	struct mlx5_dev_ctx_shared *sh;
+	int ret;
+
+	dev = pci_dev_to_eth_dev(pdev);
+	if (!dev) {
+		DRV_LOG(WARNING, "unable to find matching ethdev "
+				 "to PCI device %p", (void *)pdev);
+		rte_errno = ENODEV;
+		return -1;
+	}
+	priv = dev->data->dev_private;
+	sh = priv->sh;
+	DRV_LOG(WARNING, "%s mapping DM MR addr: 0x%08x len: 0x%08x\n",
+		__func__, addr - MLX5_DM_OFF, len + MLX5_DM_OFF);
+	mr = mlx5_create_dm_mr_ext(sh->pd, sh->dm, (uintptr_t)addr - MLX5_DM_OFF,
+				   len + MLX5_DM_OFF,
+				   SOCKET_ID_ANY, sh->share_cache.reg_dm_mr_cb);
+	if (!mr) {
+		DRV_LOG(WARNING,
+			"port %u unable to dma map", dev->data->port_id);
+		rte_errno = EINVAL;
+		return -1;
+	}
+	rte_rwlock_write_lock(&sh->share_cache.rwlock);
+	LIST_INSERT_HEAD(&sh->share_cache.mr_list, mr, mr);
+	/* Insert to the global cache table. */
+	mlx5_mr_insert_cache(&sh->share_cache, mr);
+	rte_rwlock_write_unlock(&sh->share_cache.rwlock);
+	return 0;
+}
+
 /**
  * DPDK callback to DMA map external memory to a PCI device.
  *

@@ -924,6 +924,14 @@ mlx5_alloc_shared_dev_ctx(const struct mlx5_dev_spawn_data *spawn,
 		err = ENOMEM;
 		goto error;
 	}
+	sh->dm_size = mlx5_glue->get_dm_size(sh->ctx) - MLX5_DM_OFF;
+	sh->dm = mlx5_glue->alloc_dm(sh->ctx);
+	if (sh->dm == NULL) {
+		DRV_LOG(ERR, "Device memory allocation failure");
+		err = ENOMEM;
+		goto error;
+	}
+
 	if (sh->devx) {
 		err = mlx5_os_get_pdn(sh->pd, &sh->pdn);
 		if (err) {
@@ -979,7 +987,8 @@ mlx5_alloc_shared_dev_ctx(const struct mlx5_dev_spawn_data *spawn,
 		goto error;
 	}
 	mlx5_os_set_reg_mr_cb(&sh->share_cache.reg_mr_cb,
-			      &sh->share_cache.dereg_mr_cb);
+			      &sh->share_cache.dereg_mr_cb,
+			      &sh->share_cache.reg_dm_mr_cb);
 	mlx5_os_dev_shared_handler_install(sh);
 	sh->cnt_id_tbl = mlx5_l3t_create(MLX5_L3T_TYPE_DWORD);
 	if (!sh->cnt_id_tbl) {
@@ -2101,6 +2110,8 @@ static struct mlx5_pci_driver mlx5_driver = {
 		.id_table = mlx5_pci_id_map,
 		.probe = mlx5_os_pci_probe,
 		.remove = mlx5_pci_remove,
+		.alloc_dm = mlx5_alloc_dm,
+		.get_dma_map = mlx5_get_dma_map,
 		.dma_map = mlx5_dma_map,
 		.dma_unmap = mlx5_dma_unmap,
 		.drv_flags = PCI_DRV_FLAGS,

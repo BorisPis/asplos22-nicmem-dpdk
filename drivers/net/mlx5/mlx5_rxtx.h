@@ -544,6 +544,10 @@ uint32_t mlx5_rx_addr2mr_bh(struct mlx5_rxq_data *rxq, uintptr_t addr);
 uint32_t mlx5_tx_mb2mr_bh(struct mlx5_txq_data *txq, struct rte_mbuf *mb);
 uint32_t mlx5_tx_update_ext_mp(struct mlx5_txq_data *txq, uintptr_t addr,
 			       struct rte_mempool *mp);
+int mlx5_alloc_dm(struct rte_pci_device *pdev, void **addr,
+		  size_t *len);
+int mlx5_get_dma_map(struct rte_pci_device *pdev, void *addr, uint64_t iova,
+		     size_t len);
 int mlx5_dma_map(struct rte_pci_device *pdev, void *addr, uint64_t iova,
 		 size_t len);
 int mlx5_dma_unmap(struct rte_pci_device *pdev, void *addr, uint64_t iova,
