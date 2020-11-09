@@ -5,6 +5,8 @@
 #ifndef __L3FWD_LPM_SSE_H__
 #define __L3FWD_LPM_SSE_H__
 
+#include <rte_cycles.h>
+
 #include "l3fwd_sse.h"
 
 /*
@@ -90,6 +92,8 @@ l3fwd_lpm_send_packets(int nb_rx, struct rte_mbuf **pkts_burst,
 	__m128i dip[MAX_PKT_BURST / FWDSTEP];
 	uint32_t ipv4_flag[MAX_PKT_BURST / FWDSTEP];
 	const int32_t k = RTE_ALIGN_FLOOR(nb_rx, FWDSTEP);
+	uint64_t start_tsc;
+	uint64_t end_tsc;
 
 	for (j = 0; j != k; j += FWDSTEP)
 		processx4_step1(&pkts_burst[j], &dip[j / FWDSTEP],
@@ -114,7 +118,11 @@ l3fwd_lpm_send_packets(int nb_rx, struct rte_mbuf **pkts_burst,
 		j++;
 	}
 
+	start_tsc = rte_rdtsc();
 	send_packets_multi(qconf, pkts_burst, dst_port, nb_rx);
+	end_tsc = rte_rdtsc();
+	qconf->tx_cycles = (uint64_t) (qconf->tx_cycles + end_tsc - start_tsc);
+
 }
 
 #endif /* __L3FWD_LPM_SSE_H__ */

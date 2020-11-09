@@ -75,6 +75,9 @@ struct lcore_conf {
 	struct mbuf_table tx_mbufs[RTE_MAX_ETHPORTS];
 	void *ipv4_lookup_struct;
 	void *ipv6_lookup_struct;
+	uint64_t     rx_cycles; /**< used for RX processing */
+	uint64_t     rx_cycles_idle; /**< used for RX idle processing */
+	uint64_t     tx_cycles; /**< used for TX processing */
 } __rte_cache_aligned;
 
 extern volatile bool force_quit;

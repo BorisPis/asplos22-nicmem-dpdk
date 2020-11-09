@@ -678,12 +678,24 @@ em_main_loop(__rte_unused void *dummy)
 		 * Read packet from RX queues
 		 */
 		for (i = 0; i < qconf->n_rx_queue; ++i) {
+			uint64_t start_tsc;
+			uint64_t end_tsc;
+			uint64_t diff_tsc;
+
 			portid = qconf->rx_queue_list[i].port_id;
 			queueid = qconf->rx_queue_list[i].queue_id;
+
+			start_tsc = rte_rdtsc();
 			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst,
 				MAX_PKT_BURST);
-			if (nb_rx == 0)
+			end_tsc = rte_rdtsc();
+			diff_tsc = end_tsc - start_tsc;
+			qconf->rx_cycles = (uint64_t) (qconf->rx_cycles + diff_tsc);
+
+			if (nb_rx == 0) {
+				qconf->rx_cycles_idle = (uint64_t) (qconf->rx_cycles_idle + diff_tsc);
 				continue;
+			}
 
 #if defined RTE_ARCH_X86 || defined RTE_MACHINE_CPUFLAG_NEON
 			l3fwd_em_send_packets(nb_rx, pkts_burst,
@@ -694,6 +706,19 @@ em_main_loop(__rte_unused void *dummy)
 #endif
 		}
 	}
+
+	struct rte_eth_stats stats;
+	rte_eth_stats_get(qconf->rx_queue_list[0].port_id, &stats);
+	printf("\n  Tx cpu cycles/packet=%.2f\n"
+	       "\n  Rx cpu cycles/packet=%.2f\n"
+	       "%lu mhz clock\n"
+	       "oerr %lu ierr %lu nombuf %lu\n"
+	       "idle/total=%.2f\n",
+	       (double) qconf->tx_cycles / stats.opackets,
+	       (double) qconf->rx_cycles / stats.ipackets,
+	       (uint64_t)(rte_get_tsc_hz() / 1E6),
+	       stats.oerrors, stats.ierrors, stats.rx_nombuf,
+	       (double) qconf->rx_cycles_idle / qconf->rx_cycles);
 
 	return 0;
 }
