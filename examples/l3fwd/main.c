@@ -82,7 +82,7 @@ static int g_cachesize = MEMPOOL_CACHE_SIZE;
 static int numa_on = 1; /**< NUMA is enabled by default. */
 static int parse_ptype; /**< Parse packet type using rx callback, and */
 			/**< disabled by default */
-static int per_port_pool; /**< Use separate buffer pools per port; disabled */
+static int per_port_pool=1; /**< Use separate buffer pools per port; enabled */
 			  /**< by default */
 
 volatile bool force_quit;
@@ -826,6 +826,7 @@ init_mem(uint16_t portid, unsigned int nb_mbuf)
 	unsigned lcore_id, seg_i;
 	char s[64];
 
+	printf("init_mem port %d\n", portid);
 	for (lcore_id = 0; lcore_id < 16; lcore_id++) {
 		if (rte_lcore_is_enabled(lcore_id) == 0)
 			continue;
@@ -891,6 +892,7 @@ init_mem(uint16_t portid, unsigned int nb_mbuf)
 			ext_mem[0].elt_size = rx_pkt_seg_lengths[seg_i];
 			ext_mem[0].buf_len = nb_mbuf * ext_mem[0].elt_size;
 			if (l3fwd_mem_type == MEM_HOST_PINNED) {
+host_mem_fallback:
 				printf("Alloc external pinned mem\n");
 				ext_mem[0].buf_ptr = rte_malloc_socket("extmem", ext_mem[0].buf_len, 0, socketid);
 				ext_mem[0].buf_iova = 0; // ignored in mlx5
@@ -907,9 +909,17 @@ init_mem(uint16_t portid, unsigned int nb_mbuf)
 				ret = rte_dev_alloc_dm(rte_eth_devices[portid].device,
 						       &ext_mem[0].buf_ptr,
 						       &ext_mem[0].buf_len);
-				if (ret)
-					rte_exit(EXIT_FAILURE,
-						 "Failed to allocate NIC memory\n");
+				if (ret || ext_mem[0].buf_len == 0) {
+					printf("[-] Failed to allocate NIC memory\n"
+					       "    Entering fallback using host memory\n");
+					/* reset ext_mem and restart with ext-host mem */
+					ext_mem[0].elt_size = rx_pkt_seg_lengths[seg_i];
+					ext_mem[0].buf_len = nb_mbuf * ext_mem[0].elt_size;
+					goto host_mem_fallback;
+				}
+				printf("[+] Allocated device memory: %lu %lu\n",
+						       ext_mem[0].buf_ptr,
+						       ext_mem[0].buf_len);
 
 
 				if (lcore_id == 0) {
