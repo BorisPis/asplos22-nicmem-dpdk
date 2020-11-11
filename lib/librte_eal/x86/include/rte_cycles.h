@@ -59,6 +59,33 @@ rte_rdtsc_precise(void)
 static inline uint64_t
 rte_get_tsc_cycles(void) { return rte_rdtsc(); }
 
+#define LARGE_UL_INT 0xffffffff
+#define RTE_CYCLES_ROUNDS 100000
+static inline uint64_t rte_rdtsc_calibrate(void)
+{
+	uint64_t start, end,  diff = 0;
+	uint64_t min = LARGE_UL_INT, max = 0, tmp = 0;
+	int i;
+
+	for( i = 0; i < RTE_CYCLES_ROUNDS; i++) {
+		start = rte_rdtsc();
+		//  tested code should go here
+		end = rte_rdtsc();
+		asm volatile("rep; nop");
+		tmp = (end - start);
+		diff += tmp;
+		if(tmp > max)
+			max = tmp;
+		if(tmp < min)
+			min = tmp;
+	}
+
+	diff = diff / RTE_CYCLES_ROUNDS;
+	printf("cpu_profile: calibration  average is %lu clock cycles, min is %lu, max is %lu \n",
+	       diff, min, max);
+	return diff;
+}
+
 #ifdef __cplusplus
 }
 #endif
