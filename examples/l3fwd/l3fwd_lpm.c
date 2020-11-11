@@ -43,7 +43,9 @@ struct ipv6_l3fwd_lpm_route {
 };
 
 /* 198.18.0.0/16 are set aside for RFC2544 benchmarking (RFC5735). */
-static const struct ipv4_l3fwd_lpm_route ipv4_l3fwd_lpm_route_array[] = {
+static struct ipv4_l3fwd_lpm_route ipv4_l3fwd_lpm_route_array[] = {
+	{RTE_IPV4(101, 0, 0, 0), 24, 0},
+	{RTE_IPV4(100, 0, 0, 0), 24, 0},
 	{RTE_IPV4(198, 18, 0, 0), 24, 0},
 	{RTE_IPV4(198, 18, 1, 0), 24, 1},
 	{RTE_IPV4(198, 18, 2, 0), 24, 2},
@@ -66,7 +68,7 @@ static const struct ipv6_l3fwd_lpm_route ipv6_l3fwd_lpm_route_array[] = {
 	{{32, 1, 2, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0}, 48, 7},
 };
 
-#define IPV4_L3FWD_LPM_MAX_RULES         1024
+#define IPV4_L3FWD_LPM_MAX_RULES         (1024*1024)
 #define IPV4_L3FWD_LPM_NUMBER_TBL8S (1 << 8)
 #define IPV6_L3FWD_LPM_MAX_RULES         1024
 #define IPV6_L3FWD_LPM_NUMBER_TBL8S (1 << 16)
@@ -486,7 +488,7 @@ setup_lpm(const int socketid)
 {
 	struct rte_lpm6_config config;
 	struct rte_lpm_config config_ipv4;
-	unsigned i;
+	unsigned i,j;
 	int ret;
 	char s[64];
 	char abuf[INET6_ADDRSTRLEN];
@@ -512,22 +514,25 @@ setup_lpm(const int socketid)
 				enabled_port_mask) == 0)
 			continue;
 
-		ret = rte_lpm_add(ipv4_l3fwd_lpm_lookup_struct[socketid],
-			ipv4_l3fwd_lpm_route_array[i].ip,
-			ipv4_l3fwd_lpm_route_array[i].depth,
-			ipv4_l3fwd_lpm_route_array[i].if_out);
+		for (j = 0; j < 16384; j++) {
+			ipv4_l3fwd_lpm_route_array[i].ip += (1 << 8);
+			ret = rte_lpm_add(ipv4_l3fwd_lpm_lookup_struct[socketid],
+				ipv4_l3fwd_lpm_route_array[i].ip,
+				ipv4_l3fwd_lpm_route_array[i].depth,
+				ipv4_l3fwd_lpm_route_array[i].if_out);
 
-		if (ret < 0) {
-			rte_exit(EXIT_FAILURE,
-				"Unable to add entry %u to the l3fwd LPM table on socket %d\n",
-				i, socketid);
+			if (ret < 0) {
+				rte_exit(EXIT_FAILURE,
+					"Unable to add entry %u to the l3fwd LPM table on socket %d\n",
+					i, socketid);
+			}
+
+			in.s_addr = htonl(ipv4_l3fwd_lpm_route_array[i].ip);
+			//printf("LPM: Adding route %s / %d (%d)\n",
+			//       inet_ntop(AF_INET, &in, abuf, sizeof(abuf)),
+			//	ipv4_l3fwd_lpm_route_array[i].depth,
+			//	ipv4_l3fwd_lpm_route_array[i].if_out);
 		}
-
-		in.s_addr = htonl(ipv4_l3fwd_lpm_route_array[i].ip);
-		printf("LPM: Adding route %s / %d (%d)\n",
-		       inet_ntop(AF_INET, &in, abuf, sizeof(abuf)),
-			ipv4_l3fwd_lpm_route_array[i].depth,
-			ipv4_l3fwd_lpm_route_array[i].if_out);
 	}
 
 	/* create the LPM6 table */
