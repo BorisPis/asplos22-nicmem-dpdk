@@ -623,6 +623,7 @@ em_main_loop(__rte_unused void *dummy)
 	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 	unsigned lcore_id;
 	uint64_t prev_tsc, diff_tsc, cur_tsc;
+	uint64_t total_start_tsc, total_end_tsc, total_tsc;
 	int i, nb_rx;
 	uint8_t queueid;
 	uint16_t portid;
@@ -651,6 +652,7 @@ em_main_loop(__rte_unused void *dummy)
 			lcore_id, portid, queueid);
 	}
 
+	total_start_tsc = rte_rdtsc();
 	while (!force_quit) {
 
 		cur_tsc = rte_rdtsc();
@@ -680,7 +682,7 @@ em_main_loop(__rte_unused void *dummy)
 		for (i = 0; i < qconf->n_rx_queue; ++i) {
 			uint64_t start_tsc;
 			uint64_t end_tsc;
-			uint64_t diff_tsc;
+			uint64_t _diff_tsc;
 
 			portid = qconf->rx_queue_list[i].port_id;
 			queueid = qconf->rx_queue_list[i].queue_id;
@@ -689,11 +691,11 @@ em_main_loop(__rte_unused void *dummy)
 			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst,
 				MAX_PKT_BURST);
 			end_tsc = rte_rdtsc();
-			diff_tsc = end_tsc - start_tsc;
-			qconf->rx_cycles = (uint64_t) (qconf->rx_cycles + diff_tsc);
+			_diff_tsc = end_tsc - start_tsc;
+			qconf->rx_cycles = (uint64_t) (qconf->rx_cycles + _diff_tsc);
 
 			if (nb_rx == 0) {
-				qconf->rx_cycles_idle = (uint64_t) (qconf->rx_cycles_idle + diff_tsc);
+				qconf->rx_cycles_idle = (uint64_t) (qconf->rx_cycles_idle + _diff_tsc);
 				continue;
 			}
 
@@ -707,18 +709,33 @@ em_main_loop(__rte_unused void *dummy)
 		}
 	}
 
+	total_end_tsc = rte_rdtsc();
+	total_tsc = total_end_tsc - total_start_tsc;
 	struct rte_eth_stats stats;
 	rte_eth_stats_get(qconf->rx_queue_list[0].port_id, &stats);
-	printf("\n  Tx cpu cycles/packet=%.2f\n"
-	       "\n  Rx cpu cycles/packet=%.2f\n"
-	       "%lu mhz clock\n"
-	       "oerr %lu ierr %lu nombuf %lu\n"
-	       "idle/total=%.2f\n",
-	       (double) qconf->tx_cycles / stats.opackets,
-	       (double) qconf->rx_cycles / stats.ipackets,
+	printf("\n"
+	       "    Tx cycles/total=%.2f\n"
+	       "    Rx cycles/total=%.2f\n"
+	       "    lookup cycles/total=%.2f\n"
+	       "    idle/total=%.2f\n"
+	       "    tx_cyc=%lu\n"
+	       "    rx_cyc=%lu\n"
+	       "    lookup_cyc=%lu\n"
+	       "    idle_cyc=%lu\n"
+	       "    total_cyc=%lu\n"
+	       "    %lu mhz clock\n"
+	       "    oerr %lu ierr %lu nombuf %lu\n",
+	       (double) qconf->tx_cycles / total_tsc,
+	       (double) (qconf->rx_cycles - qconf->rx_cycles_idle) / total_tsc,
+	       (double) qconf->lookup_cycles / total_tsc,
+	       (double) qconf->rx_cycles_idle / total_tsc,
+	       qconf->tx_cycles,
+	       qconf->rx_cycles - qconf->rx_cycles_idle,
+	       qconf->lookup_cycles,
+	       qconf->rx_cycles_idle,
+	       total_tsc,
 	       (uint64_t)(rte_get_tsc_hz() / 1E6),
-	       stats.oerrors, stats.ierrors, stats.rx_nombuf,
-	       (double) qconf->rx_cycles_idle / qconf->rx_cycles);
+	       stats.oerrors, stats.ierrors, stats.rx_nombuf);
 
 	return 0;
 }

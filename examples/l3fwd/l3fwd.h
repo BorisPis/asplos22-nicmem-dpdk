@@ -78,6 +78,8 @@ struct lcore_conf {
 	uint64_t     rx_cycles; /**< used for RX processing */
 	uint64_t     rx_cycles_idle; /**< used for RX idle processing */
 	uint64_t     tx_cycles; /**< used for TX processing */
+	uint64_t     lookup_cycles; /**< used for lookup processing */
+	int nb_calls;
 } __rte_cache_aligned;
 
 extern volatile bool force_quit;

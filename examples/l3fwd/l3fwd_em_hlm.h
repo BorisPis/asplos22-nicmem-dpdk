@@ -189,7 +189,10 @@ l3fwd_em_send_packets(int nb_rx, struct rte_mbuf **pkts_burst,
 	uint16_t dst_port[MAX_PKT_BURST];
 	uint64_t start_tsc;
 	uint64_t end_tsc;
+	uint64_t lookup_tsc;
 
+
+	lookup_tsc = rte_rdtsc();
 	/*
 	 * Send nb_rx - nb_rx % EM_HASH_LOOKUP_COUNT packets
 	 * in groups of EM_HASH_LOOKUP_COUNT.
@@ -240,10 +243,15 @@ l3fwd_em_send_packets(int nb_rx, struct rte_mbuf **pkts_burst,
 	for (; j < nb_rx; j++)
 		dst_port[j] = em_get_dst_port(qconf, pkts_burst[j], portid);
 
+	for (j = 0; j < qconf->nb_calls; j++) {
+		(volatile uint64_t *)rte_rand();
+	}
+
 	start_tsc = rte_rdtsc();
 	send_packets_multi(qconf, pkts_burst, dst_port, nb_rx);
 	end_tsc = rte_rdtsc();
 	qconf->tx_cycles = (uint64_t) (qconf->tx_cycles + end_tsc - start_tsc);
+	qconf->lookup_cycles = (uint64_t) (qconf->lookup_cycles + start_tsc - lookup_tsc);
 
 }
 
