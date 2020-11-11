@@ -924,13 +924,11 @@ mlx5_alloc_shared_dev_ctx(const struct mlx5_dev_spawn_data *spawn,
 		err = ENOMEM;
 		goto error;
 	}
-	sh->dm_size = mlx5_glue->get_dm_size(sh->ctx) - MLX5_DM_OFF;
+	sh->dm_size = mlx5_glue->get_dm_size(sh->ctx);
+	sh->dm_size = sh->dm_size ? sh->dm_size - MLX5_DM_OFF : 0;
 	sh->dm = mlx5_glue->alloc_dm(sh->ctx);
-	if (sh->dm == NULL) {
-		DRV_LOG(ERR, "Device memory allocation failure");
-		err = ENOMEM;
-		goto error;
-	}
+	if (sh->dm == NULL)
+		DRV_LOG(ERR, "\n  [-] Device memory allocation failure. Continuing!!!");
 
 	if (sh->devx) {
 		err = mlx5_os_get_pdn(sh->pd, &sh->pdn);

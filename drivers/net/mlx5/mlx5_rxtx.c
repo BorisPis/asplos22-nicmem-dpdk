@@ -864,7 +864,7 @@ mlx5_rxq_initialize(struct mlx5_rxq_data *rxq)
 			.byte_count = rte_cpu_to_be_32(byte_count),
 			.lkey = mlx5_rx_addr2mr(rxq, addr),
 		};
-		printf("%lx %x %x\n", addr, byte_count, scat->lkey);
+		//printf("%lx %x %x\n", addr, byte_count, scat->lkey);
 	}
 	rxq->consumed_strd = 0;
 	rxq->decompressed = 0;

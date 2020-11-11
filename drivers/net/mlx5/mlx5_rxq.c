@@ -1832,6 +1832,7 @@ mlx5_rxq_obj_new(struct rte_eth_dev *dev, uint16_t idx,
 	int ret = 0;
 	struct mlx5dv_obj obj;
 
+	printf("%s wqes %d\n", __func__, wqe_n);
 	MLX5_ASSERT(rxq_data);
 	MLX5_ASSERT(!rxq_ctrl->obj);
 	if (type == MLX5_RXQ_OBJ_TYPE_DEVX_HAIRPIN)
