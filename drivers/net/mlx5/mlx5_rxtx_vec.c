@@ -124,6 +124,9 @@ mlx5_rxq_check_vec_support(struct mlx5_rxq_data *rxq)
 	struct mlx5_rxq_ctrl *ctrl =
 		container_of(rxq, struct mlx5_rxq_ctrl, rxq);
 
+	// To compare apples-to-apples disable vec for all
+	// (not just rxq->sge_n != 0)
+	return -ENOTSUP;
 	if (mlx5_mprq_enabled(ETH_DEV(ctrl->priv)))
 		return -ENOTSUP;
 	if (!ctrl->priv->config.rx_vec_en || rxq->sges_n != 0)
