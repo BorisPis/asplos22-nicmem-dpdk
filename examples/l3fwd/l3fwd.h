@@ -81,6 +81,8 @@ struct lcore_conf {
 	uint64_t     lookup_cycles; /**< used for lookup processing */
 	uint64_t     dropped_bytes;
 	uint64_t     dropped_pkts;
+	uint64_t     txq_used;
+	uint64_t     txq_used_count;
 	int nb_calls;
 } __rte_cache_aligned;
 
@@ -112,6 +114,8 @@ send_burst(struct lcore_conf *qconf, uint16_t n, uint16_t port)
 	queueid = qconf->tx_queue_id[port];
 	m_table = (struct rte_mbuf **)qconf->tx_mbufs[port].m_table;
 
+	qconf->txq_used += rte_eth_tx_descriptors_used(port, queueid);
+	qconf->txq_used_count++;
 	ret = rte_eth_tx_burst(port, queueid, m_table, n);
 	if (unlikely(ret < n)) {
 		do {
