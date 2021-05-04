@@ -177,6 +177,7 @@ lpm_get_dst_port_with_ipv4(const struct lcore_conf *qconf, struct rte_mbuf *pkt,
 int
 lpm_main_loop(__rte_unused void *dummy)
 {
+	static bool valid_measurements = false;
 	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 	unsigned lcore_id;
 	uint64_t prev_tsc, diff_tsc, cur_tsc;
@@ -187,6 +188,7 @@ lpm_main_loop(__rte_unused void *dummy)
 	struct lcore_conf *qconf;
 	const uint64_t drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) /
 		US_PER_S * BURST_TX_DRAIN_US;
+	const uint64_t threshold = 2.1 * 1000 * 1000 * 1000 * 15; // wait 15s before starting measurements
 
 	prev_tsc = 0;
 
@@ -264,6 +266,16 @@ lpm_main_loop(__rte_unused void *dummy)
 			l3fwd_lpm_no_opt_send_packets(nb_rx, pkts_burst,
 							portid, qconf);
 #endif /* X86 */
+		}
+		if (!valid_measurements && (cur_tsc - total_start_tsc) > threshold) {
+			RTE_LOG(INFO, L3FWD, "[+] reseting counters on lcore %u\n", lcore_id);
+			qconf->lookup_cycles = 0;
+			qconf->rx_cycles_idle = 0;
+			qconf->rx_cycles = 0;
+			qconf->tx_cycles = 0;
+			total_tsc = 0;
+			total_start_tsc = rte_rdtsc();
+			valid_measurements = true;
 		}
 	}
 
