@@ -39,7 +39,7 @@ SRCS-$(CONFIG_RTE_LIBRTE_MLX5_PMD) += linux/mlx5_mp_os.c
 
 # Basic CFLAGS.
 CFLAGS += -O3
-CFLAGS += -std=c11 -Wall -Wextra
+CFLAGS += -std=c11
 CFLAGS += -g
 CFLAGS += -I$(RTE_SDK)/drivers/common/mlx5
 CFLAGS += -I$(RTE_SDK)/drivers/common/mlx5/linux
@@ -69,9 +69,9 @@ endif
 
 # User-defined CFLAGS.
 ifeq ($(CONFIG_RTE_LIBRTE_MLX5_DEBUG),y)
-CFLAGS += -pedantic
+#CFLAGS += -pedantic
 ifneq ($(CONFIG_RTE_TOOLCHAIN_ICC),y)
-CFLAGS += -DPEDANTIC
+#CFLAGS += -DPEDANTIC
 endif
 AUTO_CONFIG_CFLAGS += -Wno-pedantic
 else

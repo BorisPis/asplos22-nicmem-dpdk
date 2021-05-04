@@ -333,7 +333,6 @@ mlx5_get_dma_map(struct rte_pci_device *pdev, void *addr,
 	struct mlx5_mr *mr;
 	struct mlx5_priv *priv;
 	struct mlx5_dev_ctx_shared *sh;
-	int ret;
 
 	dev = pci_dev_to_eth_dev(pdev);
 	if (!dev) {
@@ -344,8 +343,8 @@ mlx5_get_dma_map(struct rte_pci_device *pdev, void *addr,
 	}
 	priv = dev->data->dev_private;
 	sh = priv->sh;
-	DRV_LOG(WARNING, "%s mapping DM MR addr: 0x%08x len: 0x%08x\n",
-		__func__, addr - MLX5_DM_OFF, len + MLX5_DM_OFF);
+	DRV_LOG(WARNING, "%s mapping DM MR addr: 0x%08lx len: 0x%08lx\n",
+		__func__, (uint64_t)addr - MLX5_DM_OFF, len + MLX5_DM_OFF);
 	mr = mlx5_create_dm_mr_ext(sh->pd, sh->dm, (uintptr_t)addr - MLX5_DM_OFF,
 				   len + MLX5_DM_OFF,
 				   SOCKET_ID_ANY, sh->share_cache.reg_dm_mr_cb);

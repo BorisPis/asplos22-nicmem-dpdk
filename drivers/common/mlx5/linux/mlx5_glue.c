@@ -265,7 +265,7 @@ mlx5_glue_reg_mr(struct ibv_pd *pd, void *addr, size_t length, int access)
 static struct ibv_mr *
 mlx5_glue_reg_dm_mr(struct ibv_pd *pd, struct ibv_dm *dm, void *addr, size_t length, int access)
 {
-	return ibv_reg_dm_mr(pd, dm, addr, length, access);
+	return ibv_reg_dm_mr(pd, dm, (uint64_t) addr, length, access);
 }
 
 static struct ibv_mr *
