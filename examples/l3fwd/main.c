@@ -74,6 +74,7 @@ enum {
 	MEM_HOST_INTERNAL_PINNED,
 	MEM_HOST_PINNED,
 	MEM_NIC_PINNED,
+	MEM_BASE,
 };
 
 static int l3fwd_mem_type = MEM_HOST_INTERNAL_PINNED;
@@ -673,6 +674,8 @@ parse_args(int argc, char **argv)
 				l3fwd_mem_type = MEM_HOST_PINNED;
 			else if (!strcmp(optarg, "nic"))
 				l3fwd_mem_type = MEM_NIC_PINNED;
+			else if (!strcmp(optarg, "base"))
+				l3fwd_mem_type = MEM_BASE;
 			break;
 
 		case CMD_LINE_OPT_NB_MBUFS_NUM:
@@ -842,6 +845,25 @@ init_mem(uint16_t portid, unsigned int nb_mbuf)
 				socketid, lcore_id, NB_SOCKETS);
 		}
 
+		if (l3fwd_mem_type == MEM_BASE) {
+			if (pktmbuf_pool[lcore_id][portid][socketid][0] == NULL) {
+				snprintf(s, sizeof(s), "mbuf_pool_%d:%d:%d:%d",
+					 lcore_id, portid, socketid, 0);
+				pktmbuf_pool[lcore_id][portid][socketid][0] =
+					rte_pktmbuf_pool_create(s, nb_mbuf,
+						g_cachesize, 0,
+						RTE_MBUF_DEFAULT_BUF_SIZE,
+						socketid);
+				if (pktmbuf_pool[lcore_id][portid][socketid][0] == NULL)
+					rte_exit(EXIT_FAILURE,
+						"Cannot init mbuf pool on socket %d\n",
+						socketid);
+				printf("Allocated mbuf pool on socket %d segment %d of size %d\n",
+					socketid, 0, RTE_MBUF_DEFAULT_BUF_SIZE);
+			}
+			goto skip_mem;
+		}
+
 		/* alloc first segment for headers */
 		if (pktmbuf_pool[lcore_id][portid][socketid][0] == NULL) {
 			snprintf(s, sizeof(s), "mbuf_pool_%d:%d:%d:%d",
@@ -917,12 +939,14 @@ host_mem_fallback:
 					ext_mem[0].buf_len = nb_mbuf * ext_mem[0].elt_size;
 					goto host_mem_fallback;
 				}
-				printf("[+] Allocated device memory: %lu %lu\n",
+				printf("[+] Allocated device memory: %lu %lu %d\n",
 						       ext_mem[0].buf_ptr,
-						       ext_mem[0].buf_len);
+						       ext_mem[0].buf_len,
+						       lcore_id);
 
 
 				if (lcore_id == 0) {
+					printf("[+] Registering extmem\n");
 					ext_mem[0].buf_iova = RTE_BAD_IOVA;
 					ret = rte_extmem_register(ext_mem[0].buf_ptr,
 							    ext_mem[0].buf_len, NULL,
@@ -1115,6 +1139,8 @@ l3fwd_poll_resource_setup(void)
 
 	nb_lcores = rte_lcore_count();
 
+	if (l3fwd_mem_type != MEM_BASE)
+		nb_rxd *= 2;
 	/* initialize all ports */
 	RTE_ETH_FOREACH_DEV(portid) {
 		struct rte_eth_conf local_port_conf = port_conf;
@@ -1203,17 +1229,20 @@ l3fwd_poll_resource_setup(void)
 				if (g_nb_mbufs <= MEMPOOL_CACHE_SIZE)
 					g_cachesize = g_nb_mbufs / 2;
 				printf("Using %d MBUFs %d cache\n", g_nb_mbufs, g_cachesize);
-				ret = init_mem(0, g_nb_mbufs);
+				if (!per_port_pool)
+					ret = init_mem(0, g_nb_mbufs);
+				else
+					ret = init_mem(portid, g_nb_mbufs);
 			} else {
 				if (!per_port_pool) {
 					/* portid = 0; this is *not* signifying the first port,
 					 * rather, it signifies that portid is ignored.
 					 */
-					printf("Using default %d MBUFs\n", NB_MBUF(nb_ports));
-					ret = init_mem(0, NB_MBUF(nb_ports));
+					printf("Using default %d MBUFs\n", NB_MBUF(nb_ports, nb_rx_queue, nb_rxd));
+					ret = init_mem(0, NB_MBUF(nb_ports,nb_rx_queue, nb_rxd));
 				} else {
-					printf("Using default per-port %d MBUFs\n", NB_MBUF(1));
-					ret = init_mem(portid, NB_MBUF(1));
+					printf("Using default per-port %d MBUFs\n", NB_MBUF(1,nb_rx_queue,nb_rxd));
+					ret = init_mem(portid, NB_MBUF(1,nb_rx_queue, nb_rxd));
 				}
 			}
 			if (ret < 0)
@@ -1291,16 +1320,28 @@ l3fwd_poll_resource_setup(void)
 					rx_seg[seg_i].mp = pktmbuf_pool[lcore_id][portid][socketid][seg_i];
 			}
 
-			if (!per_port_pool)
-				ret = rte_eth_rx_queue_setup_ex(portid, queueid,
-						nb_rxd, socketid,
-						&rxq_conf,
-						rx_seg, rx_pkt_nb_segs);
-			else
-				ret = rte_eth_rx_queue_setup_ex(portid, queueid,
-						nb_rxd, socketid,
-						&rxq_conf,
-						rx_seg, rx_pkt_nb_segs);
+			if (l3fwd_mem_type == MEM_BASE) {
+				//rxq_conf.offloads &= ~(DEV_RX_OFFLOAD_BUFFER_SPLIT | DEV_RX_OFFLOAD_SCATTER);
+				if (!per_port_pool)
+					ret = rte_eth_rx_queue_setup(portid, queueid, nb_rxd,
+							socketid, &rxq_conf,
+							pktmbuf_pool[lcore_id][0][socketid][0]);
+				else
+					ret = rte_eth_rx_queue_setup(portid, queueid, nb_rxd,
+							socketid, &rxq_conf,
+							pktmbuf_pool[lcore_id][portid][socketid][0]);
+			} else {
+				if (!per_port_pool)
+					ret = rte_eth_rx_queue_setup_ex(portid, queueid,
+							nb_rxd, socketid,
+							&rxq_conf,
+							rx_seg, rx_pkt_nb_segs);
+				else
+					ret = rte_eth_rx_queue_setup_ex(portid, queueid,
+							nb_rxd, socketid,
+							&rxq_conf,
+							rx_seg, rx_pkt_nb_segs);
+			}
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE,
 				"rte_eth_rx_queue_setup: err=%d, port=%d\n",
