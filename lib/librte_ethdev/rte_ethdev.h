@@ -4708,6 +4708,28 @@ static inline int rte_eth_tx_descriptor_status(uint16_t port_id,
 	return (*dev->dev_ops->tx_descriptor_status)(txq, offset);
 }
 
+
+static inline int rte_eth_tx_descriptors_used(uint16_t port_id,
+	uint16_t queue_id)
+{
+	struct rte_eth_dev *dev;
+	void *txq;
+
+#ifdef RTE_LIBRTE_ETHDEV_DEBUG
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+#endif
+	dev = &rte_eth_devices[port_id];
+#ifdef RTE_LIBRTE_ETHDEV_DEBUG
+	if (queue_id >= dev->data->nb_tx_queues)
+		return -ENODEV;
+#endif
+	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->tx_descriptor_status, -ENOTSUP);
+	txq = dev->data->tx_queues[queue_id];
+
+	return (*dev->dev_ops->tx_descriptors_used)(txq);
+}
+
+
 /**
  * Send a burst of output packets on a transmit queue of an Ethernet device.
  *

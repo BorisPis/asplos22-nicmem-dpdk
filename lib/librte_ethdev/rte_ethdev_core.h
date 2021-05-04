@@ -305,6 +305,9 @@ typedef int (*eth_rx_descriptor_status_t)(void *rxq, uint16_t offset);
 typedef int (*eth_tx_descriptor_status_t)(void *txq, uint16_t offset);
 /**< @internal Check the status of a Tx descriptor */
 
+typedef int (*eth_tx_descriptors_used_t)(void *txq);
+/**< @internal Check the status of a Tx descriptor */
+
 typedef int (*eth_fw_version_get_t)(struct rte_eth_dev *dev,
 				     char *fw_version, size_t fw_size);
 /**< @internal Get firmware information of an Ethernet device. */
@@ -677,6 +680,7 @@ struct eth_dev_ops {
 	/**< Check the status of a Rx descriptor. */
 	eth_tx_descriptor_status_t tx_descriptor_status;
 	/**< Check the status of a Tx descriptor. */
+	eth_tx_descriptors_used_t tx_descriptors_used;
 	/*
 	 * Static inline functions use functions ABOVE this comment.
 	 * New dev_ops functions should be added BELOW to avoid breaking ABI.
