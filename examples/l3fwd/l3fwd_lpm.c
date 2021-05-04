@@ -282,6 +282,7 @@ lpm_main_loop(__rte_unused void *dummy)
 	       "    idle_cyc=%lu\n"
 	       "    total_cyc=%lu\n"
 	       "    %lu mhz clock\n"
+	       "    sw drop pkts=%lu\n"
 	       "    oerr %lu ierr %lu nombuf %lu\n",
 	       (double) qconf->tx_cycles / total_tsc,
 	       (double) (qconf->rx_cycles - qconf->rx_cycles_idle) / total_tsc,
@@ -293,6 +294,7 @@ lpm_main_loop(__rte_unused void *dummy)
 	       qconf->rx_cycles_idle,
 	       total_tsc,
 	       (uint64_t)(rte_get_tsc_hz() / 1E6),
+	       qconf->dropped_pkts,
 	       stats.oerrors, stats.ierrors, stats.rx_nombuf);
 
 	return 0;

@@ -79,6 +79,8 @@ struct lcore_conf {
 	uint64_t     rx_cycles_idle; /**< used for RX idle processing */
 	uint64_t     tx_cycles; /**< used for TX processing */
 	uint64_t     lookup_cycles; /**< used for lookup processing */
+	uint64_t     dropped_bytes;
+	uint64_t     dropped_pkts;
 	int nb_calls;
 } __rte_cache_aligned;
 
@@ -114,6 +116,7 @@ send_burst(struct lcore_conf *qconf, uint16_t n, uint16_t port)
 	if (unlikely(ret < n)) {
 		do {
 			rte_pktmbuf_free(m_table[ret]);
+			qconf->dropped_pkts++;
 		} while (++ret < n);
 	}
 
