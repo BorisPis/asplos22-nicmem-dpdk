@@ -2359,6 +2359,16 @@ mlx5_tx_descriptor_status(void *tx_queue, uint16_t offset)
 	return RTE_ETH_TX_DESC_DONE;
 }
 
+int
+mlx5_tx_descriptors_used(void *tx_queue)
+{
+	struct mlx5_txq_data *__rte_restrict txq = tx_queue;
+	uint16_t used;
+
+	used = txq->elts_head - txq->elts_tail;
+	return used;
+}
+
 /**
  * Build the Control Segment with specified opcode:
  * - MLX5_OPCODE_SEND
