@@ -86,5 +86,6 @@ endif
 endif
 
 DIRS-y += eventdev_pipeline
+DIRS-y += ping
 
 include $(RTE_SDK)/mk/rte.extsubdir.mk
