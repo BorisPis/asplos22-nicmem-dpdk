@@ -2319,6 +2319,22 @@ mlx5_os_set_allmulti(struct rte_eth_dev *dev, int enable)
 				mlx5_ifindex(dev), !!enable);
 }
 
+int
+mlx5_memcpy_to_dm(struct rte_eth_dev *dev, void *src, int off, size_t len)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_dev_ctx_shared *sh = priv->sh;
+	return ibv_memcpy_to_dm(sh->dm, off, src, len);
+}
+
+int
+mlx5_memcpy_from_dm(struct rte_eth_dev *dev, void *dst, int off, size_t len)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_dev_ctx_shared *sh = priv->sh;
+	return ibv_memcpy_from_dm(dst, sh->dm, off, len);
+}
+
 const struct eth_dev_ops mlx5_os_dev_ops = {
 	.dev_configure = mlx5_dev_configure,
 	.dev_start = mlx5_dev_start,
@@ -2382,6 +2398,8 @@ const struct eth_dev_ops mlx5_os_dev_ops = {
 	.get_module_eeprom = mlx5_get_module_eeprom,
 	.hairpin_cap_get = mlx5_hairpin_cap_get,
 	.mtr_ops_get = mlx5_flow_meter_ops_get,
+	.memcpy_to_dm = mlx5_memcpy_to_dm,
+	.memcpy_from_dm = mlx5_memcpy_from_dm,
 };
 
 /* Available operations from secondary process. */

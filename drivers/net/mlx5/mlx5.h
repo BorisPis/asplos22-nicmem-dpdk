@@ -1028,6 +1028,8 @@ int mlx5_os_vf_mac_addr_modify(struct mlx5_priv *priv, unsigned int iface_idx,
 int mlx5_os_set_promisc(struct rte_eth_dev *dev, int enable);
 int mlx5_os_set_allmulti(struct rte_eth_dev *dev, int enable);
 int mlx5_os_set_nonblock_channel_fd(int fd);
+int mlx5_memcpy_to_dm(struct rte_eth_dev *dev, void *src, int off, size_t len);
+int mlx5_memcpy_from_dm(struct rte_eth_dev *dev, void *src, int off, size_t len);
 
 /* mlx5_txpp.c */
 
