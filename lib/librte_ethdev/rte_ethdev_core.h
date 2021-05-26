@@ -615,6 +615,13 @@ typedef int (*eth_tx_hairpin_queue_setup_t)
 	 uint16_t nb_tx_desc,
 	 const struct rte_eth_hairpin_conf *hairpin_conf);
 
+typedef int (*eth_memcpy_to_dm_t)
+	(struct rte_eth_dev *dev, void *,
+	 int off, size_t len);
+typedef int (*eth_memcpy_from_dm_t)
+	(struct rte_eth_dev *dev, void *,
+	 int off, size_t len);
+
 /**
  * @internal A structure containing the functions exported by an Ethernet driver.
  */
@@ -766,6 +773,9 @@ struct eth_dev_ops {
 	/**< Set up device RX hairpin queue. */
 	eth_tx_hairpin_queue_setup_t tx_hairpin_queue_setup;
 	/**< Set up device TX hairpin queue. */
+
+	eth_memcpy_to_dm_t memcpy_to_dm;
+	eth_memcpy_from_dm_t memcpy_from_dm;
 };
 
 /**

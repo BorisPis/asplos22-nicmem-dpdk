@@ -5022,6 +5022,40 @@ rte_eth_tx_buffer(uint16_t port_id, uint16_t queue_id,
 	return rte_eth_tx_buffer_flush(port_id, queue_id, buffer);
 }
 
+static __rte_always_inline int
+rte_eth_memcpy_to_dm(uint16_t port_id, void *src, int off, size_t size)
+{
+	struct rte_eth_dev *dev = &rte_eth_devices[port_id];
+
+#ifdef RTE_LIBRTE_ETHDEV_DEBUG
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, 0);
+	RTE_FUNC_PTR_OR_ERR_RET(*dev->tx_pkt_burst, 0);
+
+	if (queue_id >= dev->data->nb_tx_queues) {
+		RTE_ETHDEV_LOG(ERR, "Invalid TX queue_id=%u\n", queue_id);
+		return 0;
+	}
+#endif
+	return (*dev->dev_ops->memcpy_to_dm)(dev, src, off, size);
+}
+
+static __rte_always_inline int
+rte_eth_memcpy_from_dm(uint16_t port_id, void *dst, int off, size_t size)
+{
+	struct rte_eth_dev *dev = &rte_eth_devices[port_id];
+
+#ifdef RTE_LIBRTE_ETHDEV_DEBUG
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, 0);
+	RTE_FUNC_PTR_OR_ERR_RET(*dev->tx_pkt_burst, 0);
+
+	if (queue_id >= dev->data->nb_tx_queues) {
+		RTE_ETHDEV_LOG(ERR, "Invalid TX queue_id=%u\n", queue_id);
+		return 0;
+	}
+#endif
+	return (*dev->dev_ops->memcpy_from_dm)(dev, dst, off, size);
+}
+
 #ifdef __cplusplus
 }
 #endif
