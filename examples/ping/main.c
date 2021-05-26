@@ -281,6 +281,7 @@ contruct_ping_packet(void)
 {
     unsigned pkt_size = pktlen;
     struct rte_mbuf *pkt;
+    struct rte_mbuf *pkt2;
     struct rte_ether_hdr *eth_hdr;
     struct rte_ipv4_hdr *ip_hdr;
     struct rte_udp_hdr *udp_hdr;
@@ -289,8 +290,18 @@ contruct_ping_packet(void)
     if (!pkt)
         rte_log(RTE_LOG_ERR, RTE_LOGTYPE_PINGPONG, "fail to alloc mbuf for packet\n");
 
-    pkt->data_len = pkt_size;
-    pkt->next = NULL;
+    if (nicmem)
+	    pkt->data_len = HDR_LENGTH;
+    else
+	    pkt->data_len = pkt_size;
+    if (nicmem) {
+	    pkt2 = rte_pktmbuf_alloc(nicmem_pktmbuf_pool);
+	    pkt2->data_len = pkt_size - HDR_LENGTH;
+	    pkt2->next = NULL;
+	    pkt->next = pkt2;
+    } else {
+	    pkt->next = NULL;
+    }
 
     /* Initialize Ethernet header. */
     eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
@@ -322,7 +333,10 @@ contruct_ping_packet(void)
     udp_hdr->dgram_len = rte_cpu_to_be_16(pkt_size -
                                           sizeof(*eth_hdr) -
                                           sizeof(*ip_hdr));
-    pkt->nb_segs = 1;
+    if (nicmem)
+	    pkt->nb_segs = 2;
+    else
+	    pkt->nb_segs = 1;
     pkt->pkt_len = pkt_size;
     pkt->l2_len = sizeof(struct rte_ether_hdr);
     pkt->l3_len = sizeof(struct rte_ipv4_hdr);
@@ -572,7 +586,7 @@ int main(int argc, char **argv)
     signal(SIGTERM, signal_handler);
 
     nb_mbufs = RTE_MAX((unsigned int)(nb_ports * (nb_rxd + nb_txd + MAX_PKT_BURST + MEMPOOL_CACHE_SIZE)), 8192U);
-    if (nicmem && server_mode) {
+    if (nicmem) {
 	    struct rte_pktmbuf_extmem ext_mem[1024];
 	    int ext_mem_num = 1;
 	    int totsz = 0, i = 0;
@@ -630,6 +644,8 @@ int main(int argc, char **argv)
 								 ext_mem[0].elt_size,
 								 rte_socket_id(), &ext_mem[0],
 								 ext_mem_num);
+	    if (nicmem_pktmbuf_pool == NULL)
+		rte_exit(EXIT_FAILURE, "Cannot init nicmem mbuf pool\n");
     } else {
 	    pingpong_pktmbuf_pool = rte_pktmbuf_pool_create("mbuf_pool", nb_mbufs,
 							    MEMPOOL_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE,
@@ -669,7 +685,7 @@ int main(int argc, char **argv)
     rxq_conf = dev_info.default_rxconf;
 
     rxq_conf.offloads = local_port_conf.rxmode.offloads;
-    if (!nicmem || !server_mode) {
+    if (!nicmem) {
 	    ret = rte_eth_rx_queue_setup(portid, 0, nb_rxd,
 					 rte_eth_dev_socket_id(portid),
 					 &rxq_conf,
