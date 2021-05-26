@@ -1175,6 +1175,7 @@ mlx5_txq_obj_new(struct rte_eth_dev *dev, uint16_t idx,
 	const int desc = 1 << txq_data->elts_n;
 	int ret = 0;
 
+	printf("%s wqes %d\n", __func__, desc);
 	if (type == MLX5_TXQ_OBJ_TYPE_DEVX_HAIRPIN)
 		return mlx5_txq_obj_hairpin_new(dev, idx);
 	if (type == MLX5_TXQ_OBJ_TYPE_DEVX_SQ)
@@ -1609,7 +1610,10 @@ txq_set_params(struct mlx5_txq_ctrl *txq_ctrl)
 				"port %u minimal required inline setting"
 				" aligned from %u to %u",
 				PORT_ID(priv), inlen_mode, temp);
-			inlen_mode = temp;
+			printf("port %u minimal required inline setting"
+				" alignment skipped -- from %u to %u",
+				PORT_ID(priv), inlen_mode, temp);
+			//inlen_mode = temp;
 		}
 	}
 	/*
