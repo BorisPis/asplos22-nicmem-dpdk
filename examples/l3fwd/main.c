@@ -85,6 +85,7 @@ static int parse_ptype; /**< Parse packet type using rx callback, and */
 			/**< disabled by default */
 static int per_port_pool=1; /**< Use separate buffer pools per port; enabled */
 			  /**< by default */
+static int g_burst = MAX_PKT_BURST;
 
 volatile bool force_quit;
 
@@ -547,6 +548,7 @@ static const char short_options[] =
 #define CMD_LINE_OPT_MODE "mode"
 #define CMD_LINE_OPT_EVENTQ_SYNC "eventq-sched"
 #define CMD_LINE_OPT_EVENT_ETH_RX_QUEUES "event-eth-rxqs"
+#define CMD_LINE_OPT_BURST "burst"
 enum {
 	/* long options mapped to a short option */
 
@@ -569,6 +571,7 @@ enum {
 	CMD_LINE_OPT_MODE_NUM,
 	CMD_LINE_OPT_EVENTQ_SYNC_NUM,
 	CMD_LINE_OPT_EVENT_ETH_RX_QUEUES_NUM,
+	CMD_LINE_OPT_BURST_NUM,
 };
 
 static const struct option lgopts[] = {
@@ -589,6 +592,7 @@ static const struct option lgopts[] = {
 	{CMD_LINE_OPT_EVENTQ_SYNC, 1, 0, CMD_LINE_OPT_EVENTQ_SYNC_NUM},
 	{CMD_LINE_OPT_EVENT_ETH_RX_QUEUES, 1, 0,
 					CMD_LINE_OPT_EVENT_ETH_RX_QUEUES_NUM},
+	{CMD_LINE_OPT_BURST, 1, 0, CMD_LINE_OPT_BURST_NUM},
 	{NULL, 0, 0, 0}
 };
 
@@ -599,12 +603,16 @@ static const struct option lgopts[] = {
  * RTE_MAX is used to ensure that NB_MBUF never goes below a minimum
  * value of 8192
  */
-#define NB_MBUF(nports) RTE_MAX(	\
+#define NB_MBUF(nports,nb_rx_queue,nb_rxd) RTE_MAX(	\
 	(nports*nb_rx_queue*nb_rxd +		\
 	nports*nb_lcores*MAX_PKT_BURST +	\
 	nports*n_tx_queue*nb_txd +		\
 	nb_lcores*MEMPOOL_CACHE_SIZE),		\
 	(unsigned)8192)
+
+// static int NB_MBUF(nports,nb_rx_queue,nb_rxd) {
+// 	return nports * nb_rxd * nb_rx_queue * 8;
+// }
 
 /* Parse the argument given in the command line of the application */
 static int
@@ -759,6 +767,10 @@ parse_args(int argc, char **argv)
 			eth_rx_q = 1;
 			break;
 
+		case CMD_LINE_OPT_BURST_NUM:
+			g_burst = parse_number_or_zero(optarg);
+			break;
+
 		default:
 			print_usage(prgname);
 			return -1;
@@ -830,7 +842,7 @@ init_mem(uint16_t portid, unsigned int nb_mbuf)
 	char s[64];
 
 	printf("init_mem port %d\n", portid);
-	for (lcore_id = 0; lcore_id < 16; lcore_id++) {
+	for (lcore_id = 0; lcore_id < 64; lcore_id++) {
 		if (rte_lcore_is_enabled(lcore_id) == 0)
 			continue;
 
@@ -945,17 +957,17 @@ host_mem_fallback:
 						       lcore_id);
 
 
-				if (lcore_id == 0) {
-					printf("[+] Registering extmem\n");
-					ext_mem[0].buf_iova = RTE_BAD_IOVA;
-					ret = rte_extmem_register(ext_mem[0].buf_ptr,
-							    ext_mem[0].buf_len, NULL,
-							    ext_mem[0].buf_iova, 4096);
-					if (ret)
-						rte_exit(EXIT_FAILURE,
-							"Failed to register NIC memory %p %d\n",
-							ext_mem[0].buf_ptr, ext_mem[0].buf_len);
-				}
+				// if (lcore_id == 0) {
+				// 	printf("[+] Registering extmem\n");
+				// 	ext_mem[0].buf_iova = RTE_BAD_IOVA;
+				// 	ret = rte_extmem_register(ext_mem[0].buf_ptr,
+				// 			    ext_mem[0].buf_len, NULL,
+				// 			    ext_mem[0].buf_iova, 4096);
+				// 	if (ret)
+				// 		rte_exit(EXIT_FAILURE,
+				// 			"Failed to register NIC memory %p %d\n",
+				// 			ext_mem[0].buf_ptr, ext_mem[0].buf_len);
+				// }
 
 				ret = rte_dev_get_dma_map(rte_eth_devices[portid].device,
 							  ext_mem[0].buf_ptr, ext_mem[0].buf_iova,
@@ -1139,8 +1151,10 @@ l3fwd_poll_resource_setup(void)
 
 	nb_lcores = rte_lcore_count();
 
-	if (l3fwd_mem_type != MEM_BASE)
+	if (l3fwd_mem_type != MEM_BASE) {
 		nb_rxd *= 2;
+		nb_txd *= 2;
+	}
 	/* initialize all ports */
 	RTE_ETH_FOREACH_DEV(portid) {
 		struct rte_eth_conf local_port_conf = port_conf;
@@ -1272,6 +1286,7 @@ l3fwd_poll_resource_setup(void)
 
 			qconf->tx_port_id[qconf->n_tx_port] = portid;
 			qconf->n_tx_port++;
+			qconf->burst = g_burst; // replace MAX_PKT_BURST
 		}
 		printf("\n");
 	}

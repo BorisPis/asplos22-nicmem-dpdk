@@ -84,6 +84,10 @@ struct lcore_conf {
 	uint64_t     txq_used;
 	uint64_t     txq_used_count;
 	int nb_calls;
+	uint16_t burst;
+#define NB_MEM_CALLS (256 * 256 * 16)
+#define NB_MEM_CALLS_MASK (NB_MEM_CALLS- 1)
+	uint64_t mem_calls[NB_MEM_CALLS];
 } __rte_cache_aligned;
 
 extern volatile bool force_quit;
@@ -139,8 +143,8 @@ send_single_packet(struct lcore_conf *qconf,
 	len++;
 
 	/* enough pkts to be sent */
-	if (unlikely(len == MAX_PKT_BURST)) {
-		send_burst(qconf, MAX_PKT_BURST, port);
+	if (unlikely(len == qconf->burst)) {
+		send_burst(qconf, qconf->burst, port);
 		len = 0;
 	}
 

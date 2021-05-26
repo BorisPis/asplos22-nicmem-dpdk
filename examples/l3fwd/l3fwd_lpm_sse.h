@@ -122,7 +122,9 @@ l3fwd_lpm_send_packets(int nb_rx, struct rte_mbuf **pkts_burst,
 	}
 
 	for (j = 0; j < qconf->nb_calls; j++) {
-		(volatile uint64_t *)rte_rand();
+		// (volatile uint64_t *)rte_rand();
+		int off = rte_rand();
+		qconf->mem_calls[off & NB_MEM_CALLS_MASK]++;
 	}
 
 	start_tsc = rte_rdtsc();

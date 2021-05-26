@@ -173,6 +173,26 @@ lpm_get_dst_port_with_ipv4(const struct lcore_conf *qconf, struct rte_mbuf *pkt,
 #include "l3fwd_lpm.h"
 #endif
 
+void get_stats(struct lcore_conf *qconf) {
+	int port_id = qconf->rx_queue_list[0].port_id;
+	struct rte_eth_xstat_name *names;
+	int len = rte_eth_xstats_get_names(port_id, 0, 0);
+	names = (struct rte_eth_xstat_name *)
+		malloc(sizeof(struct rte_eth_xstat_name) * len);
+	rte_eth_xstats_get_names(port_id, names, len);
+	struct rte_eth_xstat *xstats;
+	xstats = (struct rte_eth_xstat *)
+		malloc(sizeof(struct rte_eth_xstat) * len);
+	rte_eth_xstats_get(port_id, xstats, len);
+	for (int i = 0; i < len; i++) {
+		printf("%s [%lu] = %ld\n", names[i].name,
+					 xstats[i].id,
+					 xstats[i].value);
+	}
+
+	return;
+}
+
 /* main processing loop */
 int
 lpm_main_loop(__rte_unused void *dummy)
@@ -248,7 +268,7 @@ lpm_main_loop(__rte_unused void *dummy)
 
 			start_tsc = rte_rdtsc();
 			nb_rx = rte_eth_rx_burst(portid, queueid, pkts_burst,
-				MAX_PKT_BURST);
+				qconf->burst);
 			end_tsc = rte_rdtsc();
 			_diff_tsc = end_tsc - start_tsc;
 			qconf->rx_cycles = (uint64_t) (qconf->rx_cycles + _diff_tsc);
@@ -310,6 +330,8 @@ lpm_main_loop(__rte_unused void *dummy)
 	       qconf->dropped_pkts,
 	       (double) qconf->txq_used / qconf->txq_used_count,
 	       stats.oerrors, stats.ierrors, stats.rx_nombuf);
+
+	get_stats(qconf);
 
 	return 0;
 }
