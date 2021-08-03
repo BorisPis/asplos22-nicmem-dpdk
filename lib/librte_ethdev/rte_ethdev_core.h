@@ -318,6 +318,10 @@ typedef int (*eth_tx_done_cleanup_t)(void *txq, uint32_t free_cnt);
 typedef void (*eth_rxq_info_get_t)(struct rte_eth_dev *dev,
 	uint16_t rx_queue_id, struct rte_eth_rxq_info *qinfo);
 
+typedef int (*eth_txq_set_post_callback)(struct rte_eth_dev *dev,
+	uint16_t tx_queue_id,
+	rte_post_tx_callback_fn fn, void *user_param);
+
 typedef void (*eth_txq_info_get_t)(struct rte_eth_dev *dev,
 	uint16_t tx_queue_id, struct rte_eth_txq_info *qinfo);
 
@@ -659,6 +663,8 @@ struct eth_dev_ops {
 	eth_dev_infos_get_t        dev_infos_get; /**< Get device info. */
 	eth_rxq_info_get_t         rxq_info_get; /**< retrieve RX queue information. */
 	eth_txq_info_get_t         txq_info_get; /**< retrieve TX queue information. */
+	eth_txq_set_post_callback  txq_set_post_send_cb; /**<set TX queue post send callback. */
+
 	eth_burst_mode_get_t       rx_burst_mode_get; /**< Get RX burst mode */
 	eth_burst_mode_get_t       tx_burst_mode_get; /**< Get TX burst mode */
 	eth_fw_version_get_t       fw_version_get; /**< Get firmware version. */

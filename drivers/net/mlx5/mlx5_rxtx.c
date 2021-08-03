@@ -2107,6 +2107,8 @@ mlx5_tx_free_elts(struct mlx5_txq_data *__rte_restrict txq,
 		  uint16_t tail,
 		  unsigned int olx __rte_unused)
 {
+	struct mlx5_txq_ctrl *txq_ctrl =
+		container_of(txq, struct mlx5_txq_ctrl, txq);
 	uint16_t n_elts = tail - txq->elts_tail;
 
 	MLX5_ASSERT(n_elts);
@@ -2122,6 +2124,9 @@ mlx5_tx_free_elts(struct mlx5_txq_data *__rte_restrict txq,
 		part = RTE_MIN(part, n_elts);
 		MLX5_ASSERT(part);
 		MLX5_ASSERT(part <= txq->elts_s);
+		if (txq_ctrl->fn)
+			txq_ctrl->fn(&txq->elts[txq->elts_tail & txq->elts_m],
+				     part, txq_ctrl->user_param);
 		mlx5_tx_free_mbuf(&txq->elts[txq->elts_tail & txq->elts_m],
 				  part, olx);
 		txq->elts_tail += part;
@@ -5937,6 +5942,24 @@ mlx5_txq_info_get(struct rte_eth_dev *dev, uint16_t tx_queue_id,
 	qinfo->conf.tx_deferred_start = txq_ctrl ? 0 : 1;
 	qinfo->conf.offloads = dev->data->dev_conf.txmode.offloads;
 }
+
+int
+mlx5_txq_set_post_send_cb(struct rte_eth_dev *dev, uint16_t tx_queue_id,
+			  rte_post_tx_callback_fn fn, void *user_param)
+{
+	struct mlx5_priv *priv = dev->data->dev_private;
+	struct mlx5_txq_data *txq = (*priv->txqs)[tx_queue_id];
+	struct mlx5_txq_ctrl *txq_ctrl =
+			container_of(txq, struct mlx5_txq_ctrl, txq);
+
+	if (!txq)
+		return -EINVAL;
+
+	txq_ctrl->fn = fn;
+	txq_ctrl->user_param = user_param;
+	return 0;
+}
+
 
 /**
  * DPDK callback to get the TX packet burst mode information

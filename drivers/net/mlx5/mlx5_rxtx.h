@@ -391,6 +391,8 @@ struct mlx5_txq_ctrl {
 	void *bf_reg; /* BlueFlame register from Verbs. */
 	uint16_t dump_file_n; /* Number of dump files. */
 	struct rte_eth_hairpin_conf hairpin_conf; /* Hairpin configuration. */
+	rte_post_tx_callback_fn fn; /* Callback for tx completion */
+	void *user_param; /* Callback parameter for tx completion */
 	struct mlx5_txq_data txq; /* Data path structure. */
 	/* Must be the last field in the structure, contains elts[]. */
 };
@@ -527,6 +529,8 @@ void mlx5_rxq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 		       struct rte_eth_rxq_info *qinfo);
 void mlx5_txq_info_get(struct rte_eth_dev *dev, uint16_t queue_id,
 		       struct rte_eth_txq_info *qinfo);
+int mlx5_txq_set_post_send_cb(struct rte_eth_dev *dev, uint16_t tx_queue_id,
+			  rte_post_tx_callback_fn fn, void *user_param);
 int mlx5_rx_burst_mode_get(struct rte_eth_dev *dev, uint16_t rx_queue_id,
 			   struct rte_eth_burst_mode *mode);
 int mlx5_tx_burst_mode_get(struct rte_eth_dev *dev, uint16_t tx_queue_id,

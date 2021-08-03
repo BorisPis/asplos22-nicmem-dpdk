@@ -1601,6 +1601,9 @@ typedef uint16_t (*rte_rx_callback_fn)(uint16_t port_id, uint16_t queue,
 typedef uint16_t (*rte_tx_callback_fn)(uint16_t port_id, uint16_t queue,
 	struct rte_mbuf *pkts[], uint16_t nb_pkts, void *user_param);
 
+typedef uint16_t (*rte_post_tx_callback_fn)(struct rte_mbuf *pkts[],
+					    uint16_t nb_pkts, void *user_param);
+
 /**
  * Possible states of an ethdev port.
  */
@@ -3816,6 +3819,10 @@ rte_eth_add_first_rx_callback(uint16_t port_id, uint16_t queue_id,
 const struct rte_eth_rxtx_callback *
 rte_eth_add_tx_callback(uint16_t port_id, uint16_t queue_id,
 		rte_tx_callback_fn fn, void *user_param);
+
+int
+rte_eth_post_tx_callback_set(uint16_t port_id, uint16_t queue_id,
+			     rte_post_tx_callback_fn fn, void *user_param);
 
 /**
  * Remove an RX packet callback from a given port and queue.

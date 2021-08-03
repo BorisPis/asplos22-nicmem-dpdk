@@ -4733,6 +4733,26 @@ rte_eth_add_tx_callback(uint16_t port_id, uint16_t queue_id,
 }
 
 int
+rte_eth_post_tx_callback_set(uint16_t port_id, uint16_t queue_id,
+			     rte_post_tx_callback_fn fn, void *user_param)
+{
+	struct rte_eth_dev *dev;
+
+	RTE_ETH_VALID_PORTID_OR_ERR_RET(port_id, -ENODEV);
+
+	dev = &rte_eth_devices[port_id];
+	if (queue_id >= dev->data->nb_tx_queues) {
+		RTE_ETHDEV_LOG(ERR, "Invalid TX queue_id=%u\n", queue_id);
+		return -EINVAL;
+	}
+
+	RTE_FUNC_PTR_OR_ERR_RET(*dev->dev_ops->txq_set_post_send_cb, -ENOTSUP);
+
+	//return dev->dev_ops->rxq_info_get(dev, queue_id, qinfo);
+	return dev->dev_ops->txq_set_post_send_cb(dev, queue_id, fn, user_param);
+}
+
+int
 rte_eth_remove_rx_callback(uint16_t port_id, uint16_t queue_id,
 		const struct rte_eth_rxtx_callback *user_cb)
 {
