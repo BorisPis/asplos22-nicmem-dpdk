@@ -1895,6 +1895,10 @@ mlx5_txq_new(struct rte_eth_dev *dev, uint16_t idx, uint16_t desc,
 	tmpl->txq.elts_m = desc - 1;
 	tmpl->txq.port_id = dev->data->port_id;
 	tmpl->txq.idx = idx;
+	if (conf->inline_min) {
+		printf("setting config->txq_inline_min = %d\n", conf->inline_min);
+		priv->config.txq_inline_min = conf->inline_min;
+	}
 	txq_set_params(tmpl);
 	if (txq_adjust_params(tmpl))
 		goto error;

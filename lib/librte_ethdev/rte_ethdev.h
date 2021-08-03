@@ -983,7 +983,9 @@ struct rte_eth_txconf {
 	 */
 	uint64_t offloads;
 
-	uint64_t reserved_64s[2]; /**< Reserved for future fields */
+	uint32_t inline_min;
+	uint32_t reserved_32s[1];
+	uint64_t reserved_64s[1]; /**< Reserved for future fields */
 	void *reserved_ptrs[2];   /**< Reserved for future fields */
 };
 
