@@ -24,6 +24,7 @@ all_examples = [
 	'l2fwd-crypto', 'l2fwd-jobstats',
 	'l2fwd-keepalive', 'l3fwd',
 	'l3fwd-acl', 'l3fwd-power', 'l3fwd-graph',
+	'l3fwd-count',
 	'link_status_interrupt',
 	'multi_process/client_server_mp/mp_client',
 	'multi_process/client_server_mp/mp_server',
