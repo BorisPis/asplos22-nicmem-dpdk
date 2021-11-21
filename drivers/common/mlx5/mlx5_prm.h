@@ -59,7 +59,7 @@
  * the PCIe throughput is not supposed as bottleneck and
  * inlining is disabled.
  */
-#define MLX5_INLINE_MAX_TXQS 8u
+#define MLX5_INLINE_MAX_TXQS 16u
 #define MLX5_INLINE_MAX_TXQS_BLUEFIELD 16u
 
 /*
