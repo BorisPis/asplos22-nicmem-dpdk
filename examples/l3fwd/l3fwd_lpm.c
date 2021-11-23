@@ -173,7 +173,7 @@ lpm_get_dst_port_with_ipv4(const struct lcore_conf *qconf, struct rte_mbuf *pkt,
 #include "l3fwd_lpm.h"
 #endif
 
-void get_stats(struct lcore_conf *qconf) {
+static void get_stats(struct lcore_conf *qconf) {
 	int port_id = qconf->rx_queue_list[0].port_id;
 	struct rte_eth_xstat_name *names;
 	int len = rte_eth_xstats_get_names(port_id, 0, 0);
@@ -562,7 +562,7 @@ setup_lpm(const int socketid)
 
 	/* populate the LPM table */
 	for (i = 0; i < RTE_DIM(ipv4_l3fwd_lpm_route_array); i++) {
-		struct in_addr in;
+		// struct in_addr in;
 
 		/* skip unused ports */
 		if ((1 << ipv4_l3fwd_lpm_route_array[i].if_out &
@@ -582,7 +582,7 @@ setup_lpm(const int socketid)
 					i, socketid);
 			}
 
-			in.s_addr = htonl(ipv4_l3fwd_lpm_route_array[i].ip);
+			// in.s_addr = htonl(ipv4_l3fwd_lpm_route_array[i].ip);
 			//printf("LPM: Adding route %s / %d (%d)\n",
 			//       inet_ntop(AF_INET, &in, abuf, sizeof(abuf)),
 			//	ipv4_l3fwd_lpm_route_array[i].depth,

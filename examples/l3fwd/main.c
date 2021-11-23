@@ -937,7 +937,7 @@ host_mem_fallback:
 					rte_exit(EXIT_FAILURE,
 						"DMA map failed type %d\n", l3fwd_mem_type);
 			} else { // MEM_NIC_PINNED
-				int totsz = 0, i = 0;
+				uint32_t totsz = 0, i = 0;
 
 				printf("Alloc nic pinned mem\n");
 				ret = rte_dev_alloc_dm(rte_eth_devices[portid].device,
@@ -951,7 +951,7 @@ host_mem_fallback:
 					ext_mem[0].buf_len = nb_mbuf * ext_mem[0].elt_size;
 					goto host_mem_fallback;
 				}
-				printf("[+] Allocated device memory: %lu %lu %d\n",
+				printf("[+] Allocated device memory: %p %lu %d\n",
 						       ext_mem[0].buf_ptr,
 						       ext_mem[0].buf_len,
 						       lcore_id);
@@ -986,7 +986,7 @@ host_mem_fallback:
 					totsz += (ext_mem[i].buf_len / ext_mem[i].elt_size);
 				}
 				ext_mem_num = i + 1;
-				printf("%p %d\n", ext_mem[1].buf_ptr, ext_mem[1].buf_len);
+				printf("%p %lu\n", ext_mem[1].buf_ptr, ext_mem[1].buf_len);
 			}
 
 			pktmbuf_pool[lcore_id][portid][socketid][seg_i] =
